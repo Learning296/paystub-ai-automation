@@ -807,8 +807,8 @@ st.markdown("""
 
 class Config:
     # HARDCODED API KEY
-    API_KEY = 'AIzaSyAfo4kYz2y1crhxhWPth2DT51kIFVXYhVQ'
-    MODEL = 'gemini-2.0-flash-exp'
+    API_KEY = 'AIzaSyAKidKZhEBio8Akj0nBJrZBxWyOc5_JLso'
+    MODEL = 'gemini-2.0-flash'
 
 # ============================================================================
 # CONTEXT-AWARE REPLACER (YOUR EXACT CODE)
