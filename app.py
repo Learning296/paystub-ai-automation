@@ -1,2077 +1,9 @@
 
-# """
-# AI-Powered DOCX Paystub Generator - Streamlit Web Application v5.1
-# ✓ CORRECTED CALCULATIONS (EI: 1.7%, CPP: 5.7%)
-# ✓ DYNAMIC PERIOD SELECTION
-# ✓ STAT HOLIDAYS MAPPING
-# ✓ USER API KEY INPUT
-# ✓ PERFECT YTD FORMULA
-# """
-
-# import os
-# import sys
-# import json
-# import re
-# import io
-# from typing import Dict, List, Tuple, Optional, Any
-# from datetime import datetime, timedelta
-# from decimal import Decimal, ROUND_HALF_UP
-
-# # Streamlit
-# import streamlit as st
-
-# # DOCX Processing
-# from docx import Document
-# from docx.table import Table, _Cell
-# from docx.text.paragraph import Paragraph
-
-# # AI Integration
-# import google.generativeai as genai
-
-# # ============================================================================
-# # PAGE CONFIGURATION
-# # ============================================================================
-
-# st.set_page_config(
-#     page_title="Paystub Generator v5.1",
-#     page_icon="🚀",
-#     layout="wide",
-#     initial_sidebar_state="expanded"
-# )
-
-# # ============================================================================
-# # CUSTOM CSS
-# # ============================================================================
-
-# st.markdown("""
-# <style>
-#     .main-header {
-#         font-size: 2.5rem;
-#         font-weight: bold;
-#         color: #1f77b4;
-#         text-align: center;
-#         margin-bottom: 1rem;
-#     }
-#     .sub-header {
-#         font-size: 1.2rem;
-#         color: #555;
-#         text-align: center;
-#         margin-bottom: 2rem;
-#     }
-#     .log-container {
-#         background-color: #000000;
-#         border: 1px solid #333;
-#         border-radius: 0.5rem;
-#         padding: 1.5rem;
-#         font-family: 'Courier New', monospace;
-#         font-size: 0.9rem;
-#         max-height: 600px;
-#         overflow-y: auto;
-#         color: #00ff00;
-#         line-height: 1.8;
-#     }
-#     .stButton>button {
-#         width: 100%;
-#         background-color: #1f77b4;
-#         color: white;
-#         font-weight: bold;
-#         padding: 0.5rem;
-#         border-radius: 0.5rem;
-#     }
-# </style>
-# """, unsafe_allow_html=True)
-
-# # ============================================================================
-# # PERFECT CALCULATOR - CORRECTED
-# # ============================================================================
-
-# class PerfectCalculator:
-#     """Implements client's EXACT formula with CORRECTED percentages"""
-    
-#     @staticmethod
-#     def calculate(yearly_income: float, period: int, hours: float = 80.0,
-#                  overtime_hours: float = 0.0, vacation_hours: float = 0.0,
-#                  stat_holidays: float = 0.0) -> Dict:
-#         """
-#         CLIENT FORMULA (CORRECTED):
-#         1. Yearly ÷ 26 = Bi-Weekly
-#         2. Bi-Weekly ÷ 80 = Hourly
-#         3. Hourly × Hours = Regular
-#         4. Hourly × 1.5 × OT = Overtime
-#         5. Hourly × Vacation = Vacation Pay
-#         6. Hourly × Stat = Stat Holiday Pay
-#         7. Gross = Regular + OT + Vacation + Stat
-#         8. CPP = 5.7%, EI = 1.7%, Tax = 15%
-#         9. YTD = Period × Current + Extras (CPP +$133, EI +$23)
-#         """
-        
-#         # Core calculations
-#         biweekly = yearly_income / 26.0
-#         hourly_rate = biweekly / 80.0
-        
-#         # Current period earnings
-#         regular = hourly_rate * hours
-#         overtime_rate = hourly_rate * 1.5
-#         overtime_pay = overtime_rate * overtime_hours
-#         vacation_pay = hourly_rate * vacation_hours
-#         stat_holiday_pay = hourly_rate * stat_holidays
-#         gross_current = regular + overtime_pay + vacation_pay + stat_holiday_pay
-        
-#         # Deductions current (CORRECTED PERCENTAGES)
-#         cpp_current = gross_current * 0.057  # 5.7%
-#         ei_current = gross_current * 0.017   # 1.7%
-#         tax_current = gross_current * 0.15   # 15%
-#         deductions_current = cpp_current + ei_current + tax_current
-#         net_current = gross_current - deductions_current
-        
-#         # YTD = Period × Current + Extras
-#         regular_ytd = regular * period
-#         overtime_ytd = overtime_pay * period
-#         vacation_ytd = vacation_pay * period
-#         stat_holiday_ytd = stat_holiday_pay * period
-#         gross_ytd = gross_current * period
-        
-#         # YTD Deductions with extras
-#         cpp_ytd = (cpp_current * period) + 133.0  # Add $133
-#         ei_ytd = (ei_current * period) + 23.0     # Add $23
-#         tax_ytd = tax_current * period
-#         deductions_ytd = cpp_ytd + ei_ytd + tax_ytd
-#         net_ytd = gross_ytd - deductions_ytd
-        
-#         return {
-#             'hourly_rate': hourly_rate,
-#             'hours': hours,
-#             'overtime_hours': overtime_hours,
-#             'overtime_rate': overtime_rate,
-#             'vacation_hours': vacation_hours,
-#             'stat_holidays': stat_holidays,
-#             'period': period,
-            
-#             # Current
-#             'regular_current': regular,
-#             'overtime_current': overtime_pay,
-#             'vacation_current': vacation_pay,
-#             'stat_holiday_current': stat_holiday_pay,
-#             'gross_current': gross_current,
-#             'cpp_current': cpp_current,
-#             'ei_current': ei_current,
-#             'tax_current': tax_current,
-#             'deductions_current': deductions_current,
-#             'net_current': net_current,
-            
-#             # YTD
-#             'regular_ytd': regular_ytd,
-#             'overtime_ytd': overtime_ytd,
-#             'vacation_ytd': vacation_ytd,
-#             'stat_holiday_ytd': stat_holiday_ytd,
-#             'gross_ytd': gross_ytd,
-#             'cpp_ytd': cpp_ytd,
-#             'ei_ytd': ei_ytd,
-#             'tax_ytd': tax_ytd,
-#             'deductions_ytd': deductions_ytd,
-#             'net_ytd': net_ytd,
-#         }
-
-
-# class AdvancedExtractor:
-#     """Extracts EVERYTHING with multiple strategies"""
-    
-#     @staticmethod
-#     def extract_all(doc: Document) -> Dict:
-#         """Extract using multiple methods"""
-        
-#         data = {
-#             'raw_paragraphs': [],
-#             'raw_tables': [],
-#             'all_values': [],
-#             'structured_data': {}
-#         }
-        
-#         # Method 1: Extract paragraphs
-#         for idx, para in enumerate(doc.paragraphs):
-#             text = para.text.strip()
-#             if text:
-#                 data['raw_paragraphs'].append({
-#                     'index': idx,
-#                     'text': text,
-#                     'type': 'paragraph'
-#                 })
-#                 numbers = re.findall(r'\d+[,.]?\d*\.?\d+', text)
-#                 for num in numbers:
-#                     data['all_values'].append({
-#                         'value': num,
-#                         'context': text,
-#                         'location': f'P{idx}',
-#                         'type': 'paragraph'
-#                     })
-        
-#         # Method 2: Extract tables deeply
-#         for table_idx, table in enumerate(doc.tables):
-#             table_data = {
-#                 'index': table_idx,
-#                 'rows': [],
-#                 'cells_flat': []
-#             }
-            
-#             for row_idx, row in enumerate(table.rows):
-#                 row_data = []
-#                 for cell_idx, cell in enumerate(row.cells):
-#                     cell_text = cell.text.strip()
-                    
-#                     cell_info = {
-#                         'row': row_idx,
-#                         'col': cell_idx,
-#                         'text': cell_text,
-#                         'location': f'T{table_idx}R{row_idx}C{cell_idx}'
-#                     }
-                    
-#                     row_data.append(cell_info)
-#                     table_data['cells_flat'].append(cell_info)
-                    
-#                     numbers = re.findall(r'\d+[,.]?\d*\.?\d+', cell_text)
-#                     for num in numbers:
-#                         data['all_values'].append({
-#                             'value': num,
-#                             'context': cell_text,
-#                             'location': f'T{table_idx}R{row_idx}C{cell_idx}',
-#                             'type': 'table_cell',
-#                             'cell': cell
-#                         })
-                
-#                 table_data['rows'].append(row_data)
-            
-#             data['raw_tables'].append(table_data)
-        
-#         # Create structured view for AI
-#         structured = []
-        
-#         for p in data['raw_paragraphs']:
-#             structured.append(f"[PARAGRAPH {p['index']}] {p['text']}")
-        
-#         for t in data['raw_tables']:
-#             structured.append(f"\n[TABLE {t['index']}]")
-#             for row in t['rows']:
-#                 row_text = " | ".join([f"{c['location']}: {c['text']}" for c in row if c['text']])
-#                 if row_text:
-#                     structured.append(row_text)
-        
-#         data['structured_data'] = "\n".join(structured)
-        
-#         return data
-
-
-# class RevolutionaryAI:
-#     """AI with human-level understanding"""
-    
-#     def __init__(self, api_key: str, add_log_callback=None):
-#         genai.configure(api_key=api_key)
-#         self.model = genai.GenerativeModel('gemini-2.0-flash', generation_config={"temperature": 0.01})
-#         self.add_log = add_log_callback or (lambda x: None)
-    
-#     def intelligent_mapping(self, extracted_data: Dict, calculations: Dict) -> List[Dict]:
-#         """Multi-pass intelligent field detection with STAT HOLIDAYS"""
-        
-#         # PASS 1: Identify field types and locations
-#         self.add_log("   🧠 AI Pass 1: Identifying field structure...")
-#         structure_prompt = f"""You are a SUPERB INTELLIGENT PAYSTUB ANALYZER.
-
-# EXTRACTED CONTENT:
-# {extracted_data['structured_data']}
-
-# TASK 1: IDENTIFY ALL NUMERIC VALUES AND THEIR MEANING
-
-# Look at the document and identify:
-# 1. What is the HOURLY RATE or RATE value?
-# 2. What are the HOURS worked?
-# 3. What is REGULAR PAY (current period)?
-# 4. What is OVERTIME PAY (current)?
-# 5. What is VACATION PAY (current)?
-# 6. What is STAT HOLIDAYS or STAT HOLIDAY PAY (current)? (This can be labeled as "Stat Holidays", "Statutory Holidays", "Stat Hol", "Holiday Pay", "StatHolidays", etc.)
-# 7. What is GROSS PAY (current period)?
-# 8. What is CPP/Canada Pension (current)?
-# 9. What is EI/Employment Insurance (current)?
-# 10. What is FEDERAL TAX/Income Tax (current)?
-# 11. What is NET PAY (current)?
-# 12. What are YTD (Year To Date) values?
-
-# IMPORTANT RULES:
-# - Find the ACTUAL NUMERIC VALUES (not labels)
-# - Understand field names in ANY format:
-#   * "Rate", "Hourly Rate", "$/Hr", "Rate/Hr" → hourly_rate
-#   * "Hours", "Hrs", "Regular Hours" → hours
-#   * "Regular", "Regular Pay", "RegularHourly" → regular_pay
-#   * "Overtime", "OT", "OT Pay" → overtime
-#   * "Vacation", "Vac", "Vacation Pay" → vacation
-#   * "Stat Holidays", "Stat Hol", "Statutory Holidays", "Holiday Pay", "Stat Holiday", "StatHolidays" → stat_holidays
-#   * "Gross", "Gross Pay", "Total Earnings" → gross_pay
-#   * "CPP", "CPP Employee", "Canada Pension" → cpp
-#   * "EI", "EI Cont", "Employment Insurance" → ei
-#   * "Federal Tax", "Fed Tax", "Income Tax" → federal_tax
-#   * "Net", "Net Pay", "Take Home" → net_pay
-
-# - Distinguish CURRENT vs YTD columns
-# - Skip "N/A", empty cells, labels
-
-# Return JSON with ALL numeric values found:
-# [
-#   {{"field": "hourly_rate", "value": "38.40", "location": "T0R2C3", "label": "Rate"}},
-#   {{"field": "hours", "value": "80.00", "location": "T1R3C1", "label": "Hours"}},
-#   {{"field": "stat_holidays", "value": "16.00", "location": "T1R4C1", "label": "Stat Holidays"}},
-#   ...
-# ]
-
-# Return ONLY JSON array:"""
-
-#         try:
-#             response = self.model.generate_content(structure_prompt)
-#             json_text = self._clean_json(response.text)
-#             structure = json.loads(json_text)
-#         except Exception as e:
-#             self.add_log(f"      ⚠️  Pass 1 failed: {e}")
-#             structure = []
-        
-#         self.add_log(f"      ✅ Found {len(structure)} fields")
-        
-#         # PASS 2: Create precise mappings
-#         self.add_log("   🧠 AI Pass 2: Creating replacement mappings...")
-#         mapping_prompt = f"""TASK 2: CREATE PRECISE VALUE MAPPINGS
-
-# IDENTIFIED FIELDS:
-# {json.dumps(structure, indent=2)}
-
-# CALCULATED NEW VALUES:
-# - Hourly Rate: ${calculations['hourly_rate']:.2f}
-# - Hours: {calculations['hours']}
-# - Overtime Hours: {calculations['overtime_hours']}
-# - Overtime Rate: ${calculations['overtime_rate']:.2f}
-# - Vacation Hours: {calculations['vacation_hours']}
-# - Stat Holiday Hours: {calculations['stat_holidays']}
-# - Period: {calculations['period']}
-
-# CURRENT PERIOD:
-# - Regular Pay: ${calculations['regular_current']:.2f}
-# - Overtime Pay: ${calculations['overtime_current']:.2f}
-# - Vacation Pay: ${calculations['vacation_current']:.2f}
-# - Stat Holiday Pay: ${calculations['stat_holiday_current']:.2f}
-# - Gross Pay: ${calculations['gross_current']:.2f}
-# - CPP (5.7%): ${calculations['cpp_current']:.2f}
-# - EI (1.7%): ${calculations['ei_current']:.2f}
-# - Federal Tax (15%): ${calculations['tax_current']:.2f}
-# - Net Pay: ${calculations['net_current']:.2f}
-
-# YTD (Period × Current + Extras):
-# - Regular Pay YTD: ${calculations['regular_ytd']:.2f}
-# - Overtime Pay YTD: ${calculations['overtime_ytd']:.2f}
-# - Vacation Pay YTD: ${calculations['vacation_ytd']:.2f}
-# - Stat Holiday YTD: ${calculations['stat_holiday_ytd']:.2f}
-# - Gross Pay YTD: ${calculations['gross_ytd']:.2f}
-# - CPP YTD (+$133): ${calculations['cpp_ytd']:.2f}
-# - EI YTD (+$23): ${calculations['ei_ytd']:.2f}
-# - Federal Tax YTD: ${calculations['tax_ytd']:.2f}
-# - Net Pay YTD: ${calculations['net_ytd']:.2f}
-
-# CREATE MAPPINGS:
-# - Match old values to new calculated values
-# - Preserve number format (if old has commas, new should too)
-# - Include STAT HOLIDAYS mapping if found
-# - Example: "2,811.60" → format new as "3,263.93"
-
-# Return JSON:
-# [
-#   {{
-#     "field_name": "Hourly Rate",
-#     "field_type": "hourly_rate",
-#     "old_value": "140.58",
-#     "new_value": "38.40",
-#     "location": "T0R2C3",
-#     "confidence": "high"
-#   }},
-#   ...
-# ]
-
-# Return ONLY JSON array:"""
-
-#         try:
-#             response = self.model.generate_content(mapping_prompt)
-#             json_text = self._clean_json(response.text)
-#             mappings = json.loads(json_text)
-            
-#             mappings = [m for m in mappings if m.get('confidence') in ['high', 'medium']]
-            
-#         except Exception as e:
-#             self.add_log(f"      ⚠️  Pass 2 failed: {e}")
-#             mappings = []
-        
-#         self.add_log(f"      ✅ Created {len(mappings)} mappings")
-        
-#         return mappings
-    
-#     def _clean_json(self, text: str) -> str:
-#         """Clean JSON from AI response"""
-#         text = text.strip()
-#         text = re.sub(r'^```json?\s*', '', text, flags=re.MULTILINE)
-#         text = re.sub(r'^```\s*$', '', text, flags=re.MULTILINE)
-#         match = re.search(r'\[.*\]', text, re.DOTALL)
-#         if match:
-#             return match.group(0)
-#         return text
-
-
-# class PrecisionReplacer:
-#     """Replace with PERFECT formatting preservation"""
-    
-#     @staticmethod
-#     def find_and_replace_advanced(doc: Document, mappings: List[Dict], 
-#                                   extracted_data: Dict, add_log_callback=None) -> int:
-#         """Advanced multi-strategy replacement"""
-        
-#         add_log = add_log_callback or (lambda x: None)
-#         replaced = 0
-        
-#         for mapping in mappings:
-#             old_val = str(mapping.get('old_value', '')).strip()
-#             new_val = str(mapping.get('new_value', '')).strip()
-#             field = mapping.get('field_name', 'Unknown')
-#             location = mapping.get('location', '')
-            
-#             if not old_val or not new_val:
-#                 continue
-            
-#             # Strategy 1: Direct location replacement
-#             if location:
-#                 success = PrecisionReplacer._replace_by_location(
-#                     doc, location, old_val, new_val
-#                 )
-#                 if success:
-#                     add_log(f"      ✅ {field}: '{old_val}' → '{new_val}' [{location}]")
-#                     replaced += 1
-#                     continue
-            
-#             # Strategy 2: Fuzzy search
-#             for val_info in extracted_data['all_values']:
-#                 if PrecisionReplacer._values_match(val_info['value'], old_val):
-#                     if val_info['type'] == 'table_cell' and 'cell' in val_info:
-#                         success = PrecisionReplacer._replace_in_cell(
-#                             val_info['cell'], old_val, new_val
-#                         )
-#                         if success:
-#                             add_log(f"      ✅ {field}: '{old_val}' → '{new_val}' [fuzzy]")
-#                             replaced += 1
-#                             break
-            
-#             # Strategy 3: Global search
-#             if replaced == 0:
-#                 for table in doc.tables:
-#                     for row in table.rows:
-#                         for cell in row.cells:
-#                             if PrecisionReplacer._replace_in_cell(cell, old_val, new_val):
-#                                 add_log(f"      ✅ {field}: '{old_val}' → '{new_val}' [global]")
-#                                 replaced += 1
-#                                 break
-        
-#         return replaced
-    
-#     @staticmethod
-#     def _replace_by_location(doc: Document, location: str, 
-#                             old_val: str, new_val: str) -> bool:
-#         """Replace at specific location"""
-#         match = re.match(r'T(\d+)R(\d+)C(\d+)', location)
-#         if not match:
-#             return False
-        
-#         try:
-#             t_idx, r_idx, c_idx = map(int, match.groups())
-#             cell = doc.tables[t_idx].rows[r_idx].cells[c_idx]
-#             return PrecisionReplacer._replace_in_cell(cell, old_val, new_val)
-#         except:
-#             return False
-    
-#     @staticmethod
-#     def _replace_in_cell(cell: _Cell, old_text: str, new_text: str) -> bool:
-#         """Replace in cell with formatting preservation"""
-#         for para in cell.paragraphs:
-#             for run in para.runs:
-#                 if old_text in run.text or PrecisionReplacer._values_match(run.text, old_text):
-#                     if old_text in run.text:
-#                         run.text = run.text.replace(old_text, new_text)
-#                         return True
-#                     old_clean = re.sub(r'[^\d.]', '', old_text)
-#                     run_clean = re.sub(r'[^\d.]', '', run.text)
-#                     if old_clean and old_clean == run_clean:
-#                         run.text = run.text.replace(old_text, new_text)
-#                         return True
-#         return False
-    
-#     @staticmethod
-#     def _values_match(val1: str, val2: str) -> bool:
-#         """Fuzzy value matching"""
-#         clean1 = re.sub(r'[^\d.]', '', val1)
-#         clean2 = re.sub(r'[^\d.]', '', val2)
-#         return clean1 and clean2 and clean1 == clean2
-
-
-# class Validator:
-#     """Multi-level validation"""
-    
-#     @staticmethod
-#     def validate_all(calculations: Dict, mappings: List[Dict], 
-#                     doc: Document) -> Tuple[bool, List[str]]:
-#         """Comprehensive validation"""
-#         errors = []
-        
-#         if abs(calculations['gross_current'] - 
-#                (calculations['regular_current'] + 
-#                 calculations['overtime_current'] + 
-#                 calculations['vacation_current'] +
-#                 calculations['stat_holiday_current'])) > 0.02:
-#             errors.append("Gross calculation error")
-        
-#         if not mappings:
-#             errors.append("No mappings created")
-        
-#         field_types = [m.get('field_type') for m in mappings]
-#         if 'gross_current' not in field_types and 'gross_pay' not in str(field_types):
-#             errors.append("Missing gross pay mapping")
-        
-#         return len(errors) == 0, errors
-
-
-# class RevolutionarySystem:
-#     """The ULTIMATE paystub automation system - CORRECTED VERSION"""
-    
-#     def __init__(self, api_key: str, add_log_callback=None):
-#         self.calculator = PerfectCalculator()
-#         self.extractor = AdvancedExtractor()
-#         self.ai = RevolutionaryAI(api_key, add_log_callback)
-#         self.replacer = PrecisionReplacer()
-#         self.validator = Validator()
-#         self.add_log = add_log_callback or (lambda x: None)
-    
-#     def generate(self, input_doc: Document, yearly_income: float, period: int,
-#                  hours: float = 80.0, overtime_hours: float = 0.0,
-#                  vacation_hours: float = 0.0, stat_holidays: float = 0.0) -> Tuple[Document, int]:
-#         """Generate paystub with revolutionary intelligence"""
-        
-#         self.add_log("="*90)
-#         self.add_log("PAYSTUB GENERATOR v5.1 - CORRECTED")
-#         self.add_log("   ✅ CPP: 5.7% | EI: 1.7% | Tax: 15%")
-#         self.add_log("   ✅ YTD = Period × Current + Extras (CPP +$133, EI +$23)")
-#         self.add_log("   ✅ Dynamic Period Selection")
-#         self.add_log("   ✅ Stat Holidays Mapping")
-#         self.add_log("="*90)
-#         self.add_log("")
-        
-#         # STEP 1: CALCULATE
-#         self.add_log("📊 STEP 1: Calculating (CORRECTED Formula)")
-#         self.add_log("-" * 90)
-        
-#         calcs = self.calculator.calculate(yearly_income, period, hours, 
-#                                          overtime_hours, vacation_hours, stat_holidays)
-        
-#         self.add_log(f"   Yearly: ${calcs['regular_ytd']:,.2f}")
-#         self.add_log(f"   Period: {period} of 26")
-#         self.add_log(f"   Hourly Rate: ${calcs['hourly_rate']:.2f}")
-#         self.add_log(f"   Regular Hours: {hours}")
-#         self.add_log(f"   Overtime Hours: {overtime_hours}")
-#         self.add_log(f"   Vacation Hours: {vacation_hours}")
-#         self.add_log(f"   Stat Holiday Hours: {stat_holidays}")
-#         self.add_log(f"   Gross (Current): ${calcs['gross_current']:,.2f}")
-#         self.add_log(f"   CPP (5.7%): ${calcs['cpp_current']:.2f}")
-#         self.add_log(f"   EI (1.7%): ${calcs['ei_current']:.2f}")
-#         self.add_log(f"   Tax (15%): ${calcs['tax_current']:.2f}")
-#         self.add_log(f"   Net (Current): ${calcs['net_current']:,.2f}")
-#         self.add_log(f"   CPP YTD (+$133): ${calcs['cpp_ytd']:,.2f}")
-#         self.add_log(f"   EI YTD (+$23): ${calcs['ei_ytd']:,.2f}")
-#         self.add_log("   ✅ Math verified (2+2=4!)")
-#         self.add_log("")
-        
-#         # STEP 2: EXTRACT
-#         self.add_log("📖 STEP 2: Advanced Extraction (Multi-Layer)")
-#         self.add_log("-" * 90)
-        
-#         extracted = self.extractor.extract_all(input_doc)
-        
-#         self.add_log(f"   Paragraphs: {len(extracted['raw_paragraphs'])}")
-#         self.add_log(f"   Tables: {len(extracted['raw_tables'])}")
-#         self.add_log(f"   Numeric values found: {len(extracted['all_values'])}")
-#         self.add_log("   ✅ Extracted")
-#         self.add_log("")
-        
-#         # STEP 3: AI MAPPING
-#         self.add_log("🧠 STEP 3: Revolutionary AI Detection (Multi-Pass + Stat Holidays)")
-#         self.add_log("-" * 90)
-        
-#         mappings = self.ai.intelligent_mapping(extracted, calcs)
-        
-#         if mappings:
-#             self.add_log("")
-#             self.add_log(f"{'Field':<25} {'Old':<15} {'New':<15} {'Location':<12}")
-#             self.add_log("-" * 90)
-#             for m in mappings[:15]:
-#                 self.add_log(f"{m.get('field_name', ''):<25} "
-#                       f"{m.get('old_value', ''):<15} "
-#                       f"{m.get('new_value', ''):<15} "
-#                       f"{m.get('location', ''):<12}")
-#             if len(mappings) > 15:
-#                 self.add_log(f"   ... and {len(mappings) - 15} more")
-        
-#         self.add_log("")
-#         self.add_log(f"   ✅ Total mappings: {len(mappings)}")
-#         self.add_log("")
-        
-#         # STEP 4: VALIDATE
-#         self.add_log("🔍 STEP 4: Validation")
-#         self.add_log("-" * 90)
-        
-#         valid, errors = self.validator.validate_all(calcs, mappings, input_doc)
-#         if errors:
-#             self.add_log("   ⚠️  Warnings:")
-#             for err in errors:
-#                 self.add_log(f"      - {err}")
-#         else:
-#             self.add_log("   ✅ All validations passed")
-#         self.add_log("")
-        
-#         # STEP 5: REPLACE
-#         self.add_log("✏️  STEP 5: Precision Replacement (Multi-Strategy)")
-#         self.add_log("-" * 90)
-        
-#         replaced = self.replacer.find_and_replace_advanced(input_doc, mappings, extracted, self.add_log)
-        
-#         self.add_log("")
-#         self.add_log(f"   ✅ Replaced: {replaced}/{len(mappings)} values")
-#         self.add_log("")
-        
-#         self.add_log("="*90)
-#         self.add_log("✅ GENERATION COMPLETE!")
-#         self.add_log("="*90)
-#         self.add_log("")
-        
-#         return input_doc, replaced
-
-
-# # ============================================================================
-# # PERIOD CALCULATOR
-# # ============================================================================
-
-# def calculate_period(start_date: datetime, end_date: datetime) -> int:
-#     """Calculate pay period number based on start and end date"""
-#     # Assuming bi-weekly periods starting from January 1st
-#     year_start = datetime(start_date.year, 1, 1)
-#     days_from_year_start = (end_date - year_start).days
-#     period = (days_from_year_start // 14) + 1  # Bi-weekly = 14 days
-#     return min(period, 26)  # Cap at 26 periods
-
-
-# # ============================================================================
-# # STREAMLIT APPLICATION
-# # ============================================================================
-
-# def main():
-#     # Initialize session state
-#     if 'logs' not in st.session_state:
-#         st.session_state.logs = []
-#     if 'output_docx' not in st.session_state:
-#         st.session_state.output_docx = None
-#     if 'output_filename' not in st.session_state:
-#         st.session_state.output_filename = ""
-#     if 'api_key_validated' not in st.session_state:
-#         st.session_state.api_key_validated = False
-#     if 'api_key' not in st.session_state:
-#         st.session_state.api_key = ""
-    
-#     # Header
-#     st.markdown('<div class="main-header">Paystub Generator v5.1</div>', unsafe_allow_html=True)
-#     # st.markdown('<div class="sub-header">✅ CORRECTED: CPP 5.7% • EI 1.7% • Dynamic Period • Stat Holidays • User API Key</div>', unsafe_allow_html=True)
-    
-#     # ========================================================================
-#     # API KEY INPUT SECTION
-#     # ========================================================================
-    
-#     if not st.session_state.api_key_validated:
-#         st.markdown("---")
-#         st.markdown("### 🔑 Enter Your Gemini API Key")
-#         st.info("👉 Get your free API key from: https://aistudio.google.com/app/apikey")
-        
-#         api_key_input = st.text_input(
-#             "Gemini API Key",
-#             type="password",
-#             placeholder="AIzaSy...",
-#             help="Enter your Google Gemini API key to start"
-#         )
-        
-#         col_a, col_b, col_c = st.columns([1, 1, 2])
-        
-#         with col_a:
-#             if st.button("✅ Validate & Start", type="primary"):
-#                 if api_key_input and len(api_key_input) > 20:
-#                     try:
-#                         genai.configure(api_key=api_key_input)
-#                         model = genai.GenerativeModel('gemini-2.0-flash')
-#                         response = model.generate_content("test")
-                        
-#                         st.session_state.api_key = api_key_input
-#                         st.session_state.api_key_validated = True
-#                         st.success("✅ API Key validated successfully!")
-#                         st.rerun()
-#                     except Exception as e:
-#                         st.error(f"❌ Invalid API Key: {str(e)}")
-#                 else:
-#                     st.error("❌ Please enter a valid API key")
-        
-#         with col_b:
-#             if st.button("🔄 Reset", type="secondary"):
-#                 st.session_state.api_key_validated = False
-#                 st.session_state.api_key = ""
-#                 st.rerun()
-        
-#         st.stop()
-    
-#     st.success("🔑 API Key: Connected ✅")
-    
-#     # Sidebar
-#     with st.sidebar:
-#         st.header("Paystub v5.1")
-#         st.markdown("""
-        
-#         ### 📖 How to Use
-#         1. Enter API key (done ✅)
-#         2. Upload original DOCX
-#         3. Enter yearly income
-#         4. Select pay period dates
-#         5. Enter hours/overtime/vacation
-#         6. Click "Generate Paystub"
-#         7. Download processed DOCX
-#         """)
-        
-#         st.markdown("---")
-        
-#         if st.button("🔄 Reset All", type="secondary"):
-#             st.session_state.logs = []
-#             st.session_state.output_docx = None
-#             st.session_state.output_filename = ""
-#             st.session_state.api_key_validated = False
-#             st.session_state.api_key = ""
-#             st.rerun()
-    
-#     # Main Content
-#     col1, col2 = st.columns([1, 1])
-    
-#     with col1:
-#         st.header("📤 Upload Original Paystub")
-#         uploaded_file = st.file_uploader(
-#             "Choose a DOCX file",
-#             type=['docx'],
-#             help="Upload the original paystub DOCX file"
-#         )
-        
-#         if uploaded_file:
-#             st.success(f"✅ Uploaded: {uploaded_file.name}")
-#             st.info(f"📊 File size: {len(uploaded_file.getvalue()) / 1024:.2f} KB")
-    
-#     with col2:
-#         st.header("💰 Income & Period Details")
-        
-#         yearly_income = st.number_input(
-#             "Yearly Income ($)",
-#             min_value=0.0,
-#             value=79870.22,
-#             step=100.0,
-#             format="%.2f",
-#             help="Enter total yearly income"
-#         )
-        
-#         st.markdown("**📅 Pay Period (Bi-Weekly)**")
-#         col2a, col2b = st.columns(2)
-        
-#         with col2a:
-#             start_date = st.date_input(
-#                 "Start Date",
-#                 value=datetime(2025, 1, 5),
-#                 help="Select pay period start date"
-#             )
-        
-#         with col2b:
-#             end_date = st.date_input(
-#                 "End Date",
-#                 value=datetime(2025, 1, 18),
-#                 help="Select pay period end date"
-#             )
-        
-#         if start_date and end_date:
-#             period = calculate_period(datetime.combine(start_date, datetime.min.time()), 
-#                                      datetime.combine(end_date, datetime.min.time()))
-#             st.info(f"📊 Calculated Period: **{period}** of 26")
-    
-#     # Hours & Details
-#     st.markdown("---")
-#     st.header("⏰ Hours & Earnings Details")
-    
-#     col3a, col3b, col3c, col3d = st.columns(4)
-    
-#     with col3a:
-#         regular_hours = st.number_input(
-#             "Regular Hours",
-#             min_value=0.0,
-#             value=80.0,
-#             step=0.5,
-#             format="%.2f",
-#             help="Regular hours (default: 80)"
-#         )
-    
-#     with col3b:
-#         overtime_hours = st.number_input(
-#             "Overtime Hours (1.5x)",
-#             min_value=0.0,
-#             value=0.0,
-#             step=0.5,
-#             format="%.2f",
-#             help="Overtime at 1.5x rate"
-#         )
-    
-#     with col3c:
-#         vacation_hours = st.number_input(
-#             "Vacation Hours",
-#             min_value=0.0,
-#             value=0.0,
-#             step=0.5,
-#             format="%.2f",
-#             help="Vacation hours"
-#         )
-    
-#     with col3d:
-#         stat_holiday_hours = st.number_input(
-#             "Stat Holiday Hours",
-#             min_value=0.0,
-#             value=0.0,
-#             step=0.5,
-#             format="%.2f",
-#             help="Statutory holiday hours"
-#         )
-    
-#     # Generate Button
-#     st.markdown("---")
-    
-#     if st.button("🚀 Generate Paystub", type="primary"):
-#         if not uploaded_file:
-#             st.error("❌ Please upload a DOCX file!")
-#             return
-        
-#         if not start_date or not end_date:
-#             st.error("❌ Please select both start and end dates!")
-#             return
-        
-#         st.session_state.logs = []
-#         st.session_state.output_docx = None
-        
-#         with st.spinner("🔄 Processing paystub with corrected calculations..."):
-#             try:
-#                 def add_log(msg):
-#                     st.session_state.logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
-                
-#                 doc_bytes = uploaded_file.getvalue()
-#                 doc = Document(io.BytesIO(doc_bytes))
-                
-#                 system = RevolutionarySystem(st.session_state.api_key, add_log_callback=add_log)
-                
-#                 processed_doc, replaced = system.generate(
-#                     doc,
-#                     yearly_income,
-#                     period,
-#                     regular_hours,
-#                     overtime_hours,
-#                     vacation_hours,
-#                     stat_holiday_hours
-#                 )
-                
-#                 output_buffer = io.BytesIO()
-#                 processed_doc.save(output_buffer)
-#                 output_buffer.seek(0)
-                
-#                 st.session_state.output_docx = output_buffer.getvalue()
-#                 st.session_state.output_filename = f"corrected_paystub_period{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
-                
-#                 add_log("")
-#                 add_log(f"💾 Output: {st.session_state.output_filename}")
-#                 add_log(f"✅ Total replacements: {replaced}")
-#                 add_log(f"✅ Period {period} calculations applied")
-                
-#                 st.success("✅ Paystub generated successfully with CORRECTED calculations!")
-#                 st.balloons()
-                
-#             except Exception as e:
-#                 st.error(f"❌ Error: {str(e)}")
-#                 add_log(f"❌ ERROR: {str(e)}")
-    
-#     # Display Logs
-#     if st.session_state.logs:
-#         st.markdown("---")
-#         st.markdown("### 📝 Processing Log")
-#         log_html = "<br>".join([f'<span style="color: #00ff00;">{log}</span>' for log in st.session_state.logs])
-#         st.markdown(
-#             f'<div class="log-container">{log_html}</div>',
-#             unsafe_allow_html=True
-#         )
-    
-#     # Download Button
-#     if st.session_state.output_docx:
-#         st.markdown("---")
-#         st.markdown("### 📥 Download Processed Paystub")
-        
-#         st.download_button(
-#             label="⬇️ Download Generated Paystub (DOCX)",
-#             data=st.session_state.output_docx,
-#             file_name=st.session_state.output_filename,
-#             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-#             type="primary"
-#         )
-    
-#     # Footer
-#     st.markdown("---")
-#     st.markdown("""
-#     <div style="text-align: center; color: #666; font-size: 0.9rem;">
-#         <p>Paystub Generator v5.1 - CORRECTED VERSION</p>
-   
-#     </div>
-#     """, unsafe_allow_html=True)
-
-# if __name__ == "__main__":
-#     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# ///////////////////////////////////////////////
-
-
-
-
-
-
-
-
-
-
-
-
-# """
-# AI-Powered DOCX Paystub Generator - Streamlit Web Application v5.2
-# ✓ CORRECTED CALCULATIONS (EI: 1.7%, CPP: 5.7%, Vacation: 1.25%)
-# ✓ DYNAMIC PERIOD SELECTION
-# ✓ STAT HOLIDAYS MAPPING
-# ✓ USER API KEY INPUT
-# ✓ PERFECT YTD FORMULA WITH MAX LIMITS
-# ✓ 2025/2026 CPP & EI THRESHOLD LOGIC
-# """
-
-# import os
-# import sys
-# import json
-# import re
-# import io
-# from typing import Dict, List, Tuple, Optional, Any
-# from datetime import datetime, timedelta
-# from decimal import Decimal, ROUND_HALF_UP
-
-# # Streamlit
-# import streamlit as st
-
-# # DOCX Processing
-# from docx import Document
-# from docx.table import Table, _Cell
-# from docx.text.paragraph import Paragraph
-
-# # AI Integration
-# import google.generativeai as genai
-
-# # ============================================================================
-# # PAGE CONFIGURATION
-# # ============================================================================
-
-# st.set_page_config(
-#     page_title="Paystub Generator v5.2",
-#     page_icon="🚀",
-#     layout="wide",
-#     initial_sidebar_state="expanded"
-# )
-
-# # ============================================================================
-# # CUSTOM CSS
-# # ============================================================================
-
-# st.markdown("""
-# <style>
-#     .main-header {
-#         font-size: 2.5rem;
-#         font-weight: bold;
-#         color: #1f77b4;
-#         text-align: center;
-#         margin-bottom: 1rem;
-#     }
-#     .sub-header {
-#         font-size: 1.2rem;
-#         color: #555;
-#         text-align: center;
-#         margin-bottom: 2rem;
-#     }
-#     .log-container {
-#         background-color: #000000;
-#         border: 1px solid #333;
-#         border-radius: 0.5rem;
-#         padding: 1.5rem;
-#         font-family: 'Courier New', monospace;
-#         font-size: 0.9rem;
-#         max-height: 600px;
-#         overflow-y: auto;
-#         color: #00ff00;
-#         line-height: 1.8;
-#     }
-#     .stButton>button {
-#         width: 100%;
-#         background-color: #1f77b4;
-#         color: white;
-#         font-weight: bold;
-#         padding: 0.5rem;
-#         border-radius: 0.5rem;
-#     }
-#     .limit-warning {
-#         background-color: #fff3cd;
-#         border: 2px solid #ffc107;
-#         border-radius: 0.5rem;
-#         padding: 1rem;
-#         margin: 1rem 0;
-#     }
-# </style>
-# """, unsafe_allow_html=True)
-
-# # ============================================================================
-# # YTD LIMITS CONFIGURATION
-# # ============================================================================
-
-# YTD_LIMITS = {
-#     2025: {
-#         'cpp_max': 4034.10,
-#         'ei_max': 1077.48,
-#         'cpp_max_income': 68500.00,  # Approximate
-#         'ei_max_income': 63400.00,   # Approximate
-#     },
-#     2026: {
-#         'cpp_max': 4230.45,
-#         'ei_max': 1123.07,
-#         'cpp_max_income': 74600.00,
-#         'ei_max_income': 68900.00,
-#     }
-# }
-
-# # ============================================================================
-# # ENHANCED CALCULATOR WITH YTD LIMITS
-# # ============================================================================
-
-# class PerfectCalculator:
-#     """Implements client's EXACT formula with YTD LIMITS and thresholds"""
-    
-#     @staticmethod
-#     def calculate(yearly_income: float, period: int, hours: float = 80.0,
-#                  overtime_hours: float = 0.0, vacation_hours: float = 0.0,
-#                  stat_holidays: float = 0.0, year: int = 2025) -> Dict:
-#         """
-#         ENHANCED CLIENT FORMULA:
-#         1. Yearly ÷ 26 = Bi-Weekly
-#         2. Bi-Weekly ÷ 80 = Hourly
-#         3. Hourly × Hours = Regular
-#         4. Hourly × 1.5 × OT = Overtime
-#         5. Hourly × Vacation = Vacation Pay (1.25% of gross)
-#         6. Hourly × Stat = Stat Holiday Pay
-#         7. Gross = Regular + OT + Vacation + Stat
-#         8. CPP = 5.7%, EI = 1.7%, Tax = 15%
-#         9. Vacation = 1.25% of current gross
-#         10. YTD = Period × Current + Extras (CPP +$133, EI +$23)
-#         11. **YTD LIMITS**: CPP and EI max out at thresholds (period ~17-18)
-#         """
-        
-#         # Get limits for the year
-#         limits = YTD_LIMITS.get(year, YTD_LIMITS[2025])
-        
-#         # Core calculations
-#         biweekly = yearly_income / 26.0
-#         hourly_rate = biweekly / 80.0
-        
-#         # Current period earnings
-#         regular = hourly_rate * hours
-#         overtime_rate = hourly_rate * 1.5
-#         overtime_pay = overtime_rate * overtime_hours
-#         stat_holiday_pay = hourly_rate * stat_holidays
-        
-#         # Gross before vacation
-#         gross_before_vacation = regular + overtime_pay + stat_holiday_pay
-        
-#         # Vacation is 1.25% of gross (before vacation)
-#         vacation_pay = gross_before_vacation * 0.0125
-        
-#         # Final gross including vacation
-#         gross_current = gross_before_vacation + vacation_pay
-        
-#         # Deductions current (CORRECTED PERCENTAGES)
-#         cpp_current = gross_current * 0.057  # 5.7%
-#         ei_current = gross_current * 0.017   # 1.7%
-#         tax_current = gross_current * 0.15   # 15%
-#         deductions_current = cpp_current + ei_current + tax_current
-#         net_current = gross_current - deductions_current
-        
-#         # YTD = Period × Current + Extras
-#         regular_ytd = regular * period
-#         overtime_ytd = overtime_pay * period
-#         vacation_ytd = vacation_pay * period
-#         stat_holiday_ytd = stat_holiday_pay * period
-#         gross_ytd = gross_current * period
-        
-#         # YTD Deductions with extras AND LIMITS
-#         cpp_ytd_calculated = (cpp_current * period) + 133.0  # Add $133
-#         ei_ytd_calculated = (ei_current * period) + 23.0     # Add $23
-        
-#         # Apply MAX limits (typically kicks in around period 17-18 for high income)
-#         cpp_ytd = min(cpp_ytd_calculated, limits['cpp_max'])
-#         ei_ytd = min(ei_ytd_calculated, limits['ei_max'])
-        
-#         # Check if limits were hit
-#         cpp_limit_hit = cpp_ytd_calculated >= limits['cpp_max']
-#         ei_limit_hit = ei_ytd_calculated >= limits['ei_max']
-        
-#         # If limit hit, current period deduction should be adjusted
-#         # (In reality, once max is hit, no more deductions for that year)
-#         if period >= 17:  # Typically maxes out around period 17-18
-#             if cpp_limit_hit and cpp_ytd >= limits['cpp_max']:
-#                 # No more CPP deductions
-#                 cpp_current_adjusted = 0.0
-#             else:
-#                 cpp_current_adjusted = cpp_current
-                
-#             if ei_limit_hit and ei_ytd >= limits['ei_max']:
-#                 # No more EI deductions
-#                 ei_current_adjusted = 0.0
-#             else:
-#                 ei_current_adjusted = ei_current
-#         else:
-#             cpp_current_adjusted = cpp_current
-#             ei_current_adjusted = ei_current
-        
-#         tax_ytd = tax_current * period
-#         deductions_ytd = cpp_ytd + ei_ytd + tax_ytd
-#         net_ytd = gross_ytd - deductions_ytd
-        
-#         return {
-#             'hourly_rate': hourly_rate,
-#             'hours': hours,
-#             'overtime_hours': overtime_hours,
-#             'overtime_rate': overtime_rate,
-#             'vacation_hours': vacation_hours,
-#             'stat_holidays': stat_holidays,
-#             'period': period,
-#             'year': year,
-            
-#             # Current
-#             'regular_current': regular,
-#             'overtime_current': overtime_pay,
-#             'vacation_current': vacation_pay,
-#             'stat_holiday_current': stat_holiday_pay,
-#             'gross_current': gross_current,
-#             'cpp_current': cpp_current_adjusted,
-#             'ei_current': ei_current_adjusted,
-#             'tax_current': tax_current,
-#             'deductions_current': cpp_current_adjusted + ei_current_adjusted + tax_current,
-#             'net_current': gross_current - (cpp_current_adjusted + ei_current_adjusted + tax_current),
-            
-#             # YTD
-#             'regular_ytd': regular_ytd,
-#             'overtime_ytd': overtime_ytd,
-#             'vacation_ytd': vacation_ytd,
-#             'stat_holiday_ytd': stat_holiday_ytd,
-#             'gross_ytd': gross_ytd,
-#             'cpp_ytd': cpp_ytd,
-#             'ei_ytd': ei_ytd,
-#             'tax_ytd': tax_ytd,
-#             'deductions_ytd': deductions_ytd,
-#             'net_ytd': net_ytd,
-            
-#             # Limits info
-#             'cpp_limit_hit': cpp_limit_hit,
-#             'ei_limit_hit': ei_limit_hit,
-#             'cpp_max': limits['cpp_max'],
-#             'ei_max': limits['ei_max'],
-#             'cpp_ytd_calculated': cpp_ytd_calculated,
-#             'ei_ytd_calculated': ei_ytd_calculated,
-#         }
-
-
-# class AdvancedExtractor:
-#     """Extracts EVERYTHING with multiple strategies"""
-    
-#     @staticmethod
-#     def extract_all(doc: Document) -> Dict:
-#         """Extract using multiple methods"""
-        
-#         data = {
-#             'raw_paragraphs': [],
-#             'raw_tables': [],
-#             'all_values': [],
-#             'structured_data': {}
-#         }
-        
-#         # Method 1: Extract paragraphs
-#         for idx, para in enumerate(doc.paragraphs):
-#             text = para.text.strip()
-#             if text:
-#                 data['raw_paragraphs'].append({
-#                     'index': idx,
-#                     'text': text,
-#                     'type': 'paragraph'
-#                 })
-#                 numbers = re.findall(r'\d+[,.]?\d*\.?\d+', text)
-#                 for num in numbers:
-#                     data['all_values'].append({
-#                         'value': num,
-#                         'context': text,
-#                         'location': f'P{idx}',
-#                         'type': 'paragraph'
-#                     })
-        
-#         # Method 2: Extract tables deeply
-#         for table_idx, table in enumerate(doc.tables):
-#             table_data = {
-#                 'index': table_idx,
-#                 'rows': [],
-#                 'cells_flat': []
-#             }
-            
-#             for row_idx, row in enumerate(table.rows):
-#                 row_data = []
-#                 for cell_idx, cell in enumerate(row.cells):
-#                     cell_text = cell.text.strip()
-                    
-#                     cell_info = {
-#                         'row': row_idx,
-#                         'col': cell_idx,
-#                         'text': cell_text,
-#                         'location': f'T{table_idx}R{row_idx}C{cell_idx}'
-#                     }
-                    
-#                     row_data.append(cell_info)
-#                     table_data['cells_flat'].append(cell_info)
-                    
-#                     numbers = re.findall(r'\d+[,.]?\d*\.?\d+', cell_text)
-#                     for num in numbers:
-#                         data['all_values'].append({
-#                             'value': num,
-#                             'context': cell_text,
-#                             'location': f'T{table_idx}R{row_idx}C{cell_idx}',
-#                             'type': 'table_cell',
-#                             'cell': cell
-#                         })
-                
-#                 table_data['rows'].append(row_data)
-            
-#             data['raw_tables'].append(table_data)
-        
-#         # Create structured view for AI
-#         structured = []
-        
-#         for p in data['raw_paragraphs']:
-#             structured.append(f"[PARAGRAPH {p['index']}] {p['text']}")
-        
-#         for t in data['raw_tables']:
-#             structured.append(f"\n[TABLE {t['index']}]")
-#             for row in t['rows']:
-#                 row_text = " | ".join([f"{c['location']}: {c['text']}" for c in row if c['text']])
-#                 if row_text:
-#                     structured.append(row_text)
-        
-#         data['structured_data'] = "\n".join(structured)
-        
-#         return data
-
-
-# class RevolutionaryAI:
-#     """AI with human-level understanding"""
-    
-#     def __init__(self, api_key: str, add_log_callback=None):
-#         genai.configure(api_key=api_key)
-#         self.model = genai.GenerativeModel('gemini-2.0-flash', generation_config={"temperature": 0.01})
-#         self.add_log = add_log_callback or (lambda x: None)
-    
-#     def intelligent_mapping(self, extracted_data: Dict, calculations: Dict) -> List[Dict]:
-#         """Multi-pass intelligent field detection with STAT HOLIDAYS and YTD LIMITS"""
-        
-#         # PASS 1: Identify field types and locations
-#         self.add_log("   🧠 AI Pass 1: Identifying field structure...")
-#         structure_prompt = f"""You are a SUPERB INTELLIGENT PAYSTUB ANALYZER.
-
-# EXTRACTED CONTENT:
-# {extracted_data['structured_data']}
-
-# TASK 1: IDENTIFY ALL NUMERIC VALUES AND THEIR MEANING
-
-# Look at the document and identify:
-# 1. What is the HOURLY RATE or RATE value?
-# 2. What are the HOURS worked?
-# 3. What is REGULAR PAY (current period)?
-# 4. What is OVERTIME PAY (current)?
-# 5. What is VACATION PAY (current)?
-# 6. What is STAT HOLIDAYS or STAT HOLIDAY PAY (current)?
-# 7. What is GROSS PAY (current period)?
-# 8. What is CPP/Canada Pension (current)?
-# 9. What is EI/Employment Insurance (current)?
-# 10. What is FEDERAL TAX/Income Tax (current)?
-# 11. What is NET PAY (current)?
-# 12. What are YTD (Year To Date) values?
-
-# IMPORTANT RULES:
-# - Find the ACTUAL NUMERIC VALUES (not labels)
-# - Understand field names in ANY format
-# - Distinguish CURRENT vs YTD columns
-# - Skip "N/A", empty cells, labels
-
-# Return JSON with ALL numeric values found:
-# [
-#   {{"field": "hourly_rate", "value": "38.40", "location": "T0R2C3", "label": "Rate"}},
-#   {{"field": "hours", "value": "80.00", "location": "T1R3C1", "label": "Hours"}},
-#   {{"field": "stat_holidays", "value": "16.00", "location": "T1R4C1", "label": "Stat Holidays"}},
-#   ...
-# ]
-
-# Return ONLY JSON array:"""
-
-#         try:
-#             response = self.model.generate_content(structure_prompt)
-#             json_text = self._clean_json(response.text)
-#             structure = json.loads(json_text)
-#         except Exception as e:
-#             self.add_log(f"      ⚠️  Pass 1 failed: {e}")
-#             structure = []
-        
-#         self.add_log(f"      ✅ Found {len(structure)} fields")
-        
-#         # PASS 2: Create precise mappings
-#         self.add_log("   🧠 AI Pass 2: Creating replacement mappings...")
-        
-#         limit_info = ""
-#         if calculations.get('cpp_limit_hit') or calculations.get('ei_limit_hit'):
-#             limit_info = f"""
-# ⚠️ YTD LIMITS ACTIVE:
-# - CPP Limit: ${calculations['cpp_max']:,.2f} {"(MAX REACHED)" if calculations['cpp_limit_hit'] else ""}
-# - EI Limit: ${calculations['ei_max']:,.2f} {"(MAX REACHED)" if calculations['ei_limit_hit'] else ""}
-# - Period {calculations['period']} of 26 (Year {calculations['year']})
-# """
-        
-#         mapping_prompt = f"""TASK 2: CREATE PRECISE VALUE MAPPINGS
-
-# IDENTIFIED FIELDS:
-# {json.dumps(structure, indent=2)}
-
-# CALCULATED NEW VALUES:
-# - Hourly Rate: ${calculations['hourly_rate']:.2f}
-# - Hours: {calculations['hours']}
-# - Overtime Hours: {calculations['overtime_hours']}
-# - Overtime Rate: ${calculations['overtime_rate']:.2f}
-# - Vacation Hours: {calculations['vacation_hours']}
-# - Stat Holiday Hours: {calculations['stat_holidays']}
-# - Period: {calculations['period']} of 26
-
-# CURRENT PERIOD:
-# - Regular Pay: ${calculations['regular_current']:.2f}
-# - Overtime Pay: ${calculations['overtime_current']:.2f}
-# - Vacation Pay (1.25% of gross): ${calculations['vacation_current']:.2f}
-# - Stat Holiday Pay: ${calculations['stat_holiday_current']:.2f}
-# - Gross Pay: ${calculations['gross_current']:.2f}
-# - CPP (5.7%): ${calculations['cpp_current']:.2f}
-# - EI (1.7%): ${calculations['ei_current']:.2f}
-# - Federal Tax (15%): ${calculations['tax_current']:.2f}
-# - Net Pay: ${calculations['net_current']:.2f}
-
-# YTD (WITH MAX LIMITS APPLIED):
-# - Regular Pay YTD: ${calculations['regular_ytd']:.2f}
-# - Overtime Pay YTD: ${calculations['overtime_ytd']:.2f}
-# - Vacation Pay YTD: ${calculations['vacation_ytd']:.2f}
-# - Stat Holiday YTD: ${calculations['stat_holiday_ytd']:.2f}
-# - Gross Pay YTD: ${calculations['gross_ytd']:.2f}
-# - CPP YTD: ${calculations['cpp_ytd']:.2f} (Max: ${calculations['cpp_max']:.2f})
-# - EI YTD: ${calculations['ei_ytd']:.2f} (Max: ${calculations['ei_max']:.2f})
-# - Federal Tax YTD: ${calculations['tax_ytd']:.2f}
-# - Net Pay YTD: ${calculations['net_ytd']:.2f}
-
-# {limit_info}
-
-# CREATE MAPPINGS:
-# - Match old values to new calculated values
-# - Preserve number format (if old has commas, new should too)
-# - Include ALL fields including vacation (1.25%)
-
-# Return JSON:
-# [
-#   {{
-#     "field_name": "Hourly Rate",
-#     "field_type": "hourly_rate",
-#     "old_value": "140.58",
-#     "new_value": "38.40",
-#     "location": "T0R2C3",
-#     "confidence": "high"
-#   }},
-#   ...
-# ]
-
-# Return ONLY JSON array:"""
-
-#         try:
-#             response = self.model.generate_content(mapping_prompt)
-#             json_text = self._clean_json(response.text)
-#             mappings = json.loads(json_text)
-            
-#             mappings = [m for m in mappings if m.get('confidence') in ['high', 'medium']]
-            
-#         except Exception as e:
-#             self.add_log(f"      ⚠️  Pass 2 failed: {e}")
-#             mappings = []
-        
-#         self.add_log(f"      ✅ Created {len(mappings)} mappings")
-        
-#         return mappings
-    
-#     def _clean_json(self, text: str) -> str:
-#         """Clean JSON from AI response"""
-#         text = text.strip()
-#         text = re.sub(r'^```json?\s*', '', text, flags=re.MULTILINE)
-#         text = re.sub(r'^```\s*$', '', text, flags=re.MULTILINE)
-#         match = re.search(r'\[.*\]', text, re.DOTALL)
-#         if match:
-#             return match.group(0)
-#         return text
-
-
-# class PrecisionReplacer:
-#     """Replace with PERFECT formatting preservation"""
-    
-#     @staticmethod
-#     def find_and_replace_advanced(doc: Document, mappings: List[Dict], 
-#                                   extracted_data: Dict, add_log_callback=None) -> int:
-#         """Advanced multi-strategy replacement"""
-        
-#         add_log = add_log_callback or (lambda x: None)
-#         replaced = 0
-        
-#         for mapping in mappings:
-#             old_val = str(mapping.get('old_value', '')).strip()
-#             new_val = str(mapping.get('new_value', '')).strip()
-#             field = mapping.get('field_name', 'Unknown')
-#             location = mapping.get('location', '')
-            
-#             if not old_val or not new_val:
-#                 continue
-            
-#             # Strategy 1: Direct location replacement
-#             if location:
-#                 success = PrecisionReplacer._replace_by_location(
-#                     doc, location, old_val, new_val
-#                 )
-#                 if success:
-#                     add_log(f"      ✅ {field}: '{old_val}' → '{new_val}' [{location}]")
-#                     replaced += 1
-#                     continue
-            
-#             # Strategy 2: Fuzzy search
-#             for val_info in extracted_data['all_values']:
-#                 if PrecisionReplacer._values_match(val_info['value'], old_val):
-#                     if val_info['type'] == 'table_cell' and 'cell' in val_info:
-#                         success = PrecisionReplacer._replace_in_cell(
-#                             val_info['cell'], old_val, new_val
-#                         )
-#                         if success:
-#                             add_log(f"      ✅ {field}: '{old_val}' → '{new_val}' [fuzzy]")
-#                             replaced += 1
-#                             break
-            
-#             # Strategy 3: Global search
-#             if replaced == 0:
-#                 for table in doc.tables:
-#                     for row in table.rows:
-#                         for cell in row.cells:
-#                             if PrecisionReplacer._replace_in_cell(cell, old_val, new_val):
-#                                 add_log(f"      ✅ {field}: '{old_val}' → '{new_val}' [global]")
-#                                 replaced += 1
-#                                 break
-        
-#         return replaced
-    
-#     @staticmethod
-#     def _replace_by_location(doc: Document, location: str, 
-#                             old_val: str, new_val: str) -> bool:
-#         """Replace at specific location"""
-#         match = re.match(r'T(\d+)R(\d+)C(\d+)', location)
-#         if not match:
-#             return False
-        
-#         try:
-#             t_idx, r_idx, c_idx = map(int, match.groups())
-#             cell = doc.tables[t_idx].rows[r_idx].cells[c_idx]
-#             return PrecisionReplacer._replace_in_cell(cell, old_val, new_val)
-#         except:
-#             return False
-    
-#     @staticmethod
-#     def _replace_in_cell(cell: _Cell, old_text: str, new_text: str) -> bool:
-#         """Replace in cell with formatting preservation"""
-#         for para in cell.paragraphs:
-#             for run in para.runs:
-#                 if old_text in run.text or PrecisionReplacer._values_match(run.text, old_text):
-#                     if old_text in run.text:
-#                         run.text = run.text.replace(old_text, new_text)
-#                         return True
-#                     old_clean = re.sub(r'[^\d.]', '', old_text)
-#                     run_clean = re.sub(r'[^\d.]', '', run.text)
-#                     if old_clean and old_clean == run_clean:
-#                         run.text = run.text.replace(old_text, new_text)
-#                         return True
-#         return False
-    
-#     @staticmethod
-#     def _values_match(val1: str, val2: str) -> bool:
-#         """Fuzzy value matching"""
-#         clean1 = re.sub(r'[^\d.]', '', val1)
-#         clean2 = re.sub(r'[^\d.]', '', val2)
-#         return clean1 and clean2 and clean1 == clean2
-
-
-# class Validator:
-#     """Multi-level validation"""
-    
-#     @staticmethod
-#     def validate_all(calculations: Dict, mappings: List[Dict], 
-#                     doc: Document) -> Tuple[bool, List[str]]:
-#         """Comprehensive validation"""
-#         errors = []
-        
-#         if abs(calculations['gross_current'] - 
-#                (calculations['regular_current'] + 
-#                 calculations['overtime_current'] + 
-#                 calculations['vacation_current'] +
-#                 calculations['stat_holiday_current'])) > 0.02:
-#             errors.append("Gross calculation error")
-        
-#         if not mappings:
-#             errors.append("No mappings created")
-        
-#         field_types = [m.get('field_type') for m in mappings]
-#         if 'gross_current' not in field_types and 'gross_pay' not in str(field_types):
-#             errors.append("Missing gross pay mapping")
-        
-#         return len(errors) == 0, errors
-
-
-# class RevolutionarySystem:
-#     """The ULTIMATE paystub automation system v5.2"""
-    
-#     def __init__(self, api_key: str, add_log_callback=None):
-#         self.calculator = PerfectCalculator()
-#         self.extractor = AdvancedExtractor()
-#         self.ai = RevolutionaryAI(api_key, add_log_callback)
-#         self.replacer = PrecisionReplacer()
-#         self.validator = Validator()
-#         self.add_log = add_log_callback or (lambda x: None)
-    
-#     def generate(self, input_doc: Document, yearly_income: float, period: int,
-#                  hours: float = 80.0, overtime_hours: float = 0.0,
-#                  vacation_hours: float = 0.0, stat_holidays: float = 0.0,
-#                  year: int = 2025) -> Tuple[Document, int, Dict]:
-#         """Generate paystub with revolutionary intelligence and YTD limits"""
-        
-#         self.add_log("="*90)
-#         self.add_log(f"PAYSTUB GENERATOR v5.2 - ENHANCED WITH YTD LIMITS ({year})")
-#         self.add_log("   ✅ CPP: 5.7% | EI: 1.7% | Tax: 15% | Vacation: 1.25%")
-#         self.add_log("   ✅ YTD MAX: CPP ${:,.2f} | EI ${:,.2f}".format(
-#             YTD_LIMITS[year]['cpp_max'], YTD_LIMITS[year]['ei_max']))
-#         self.add_log("   ✅ Dynamic Period Selection")
-#         self.add_log("   ✅ Stat Holidays Mapping")
-#         self.add_log("="*90)
-#         self.add_log("")
-        
-#         # STEP 1: CALCULATE
-#         self.add_log("📊 STEP 1: Calculating (WITH YTD LIMITS)")
-#         self.add_log("-" * 90)
-        
-#         calcs = self.calculator.calculate(yearly_income, period, hours, 
-#                                          overtime_hours, vacation_hours, 
-#                                          stat_holidays, year)
-        
-#         self.add_log(f"   Yearly: ${yearly_income:,.2f}")
-#         self.add_log(f"   Period: {period} of 26 ({year})")
-#         self.add_log(f"   Hourly Rate: ${calcs['hourly_rate']:.2f}")
-#         self.add_log(f"   Regular Hours: {hours}")
-#         self.add_log(f"   Overtime Hours: {overtime_hours}")
-#         self.add_log(f"   Vacation Hours: {vacation_hours}")
-#         self.add_log(f"   Stat Holiday Hours: {stat_holidays}")
-#         self.add_log(f"   Gross (Current): ${calcs['gross_current']:,.2f}")
-#         self.add_log(f"   CPP (5.7%): ${calcs['cpp_current']:.2f}")
-#         self.add_log(f"   EI (1.7%): ${calcs['ei_current']:.2f}")
-#         self.add_log(f"   Tax (15%): ${calcs['tax_current']:.2f}")
-#         self.add_log(f"   Vacation (1.25%): ${calcs['vacation_current']:.2f}")
-#         self.add_log(f"   Net (Current): ${calcs['net_current']:,.2f}")
-        
-#         if calcs['cpp_limit_hit']:
-#             self.add_log(f"   ⚠️  CPP YTD LIMIT REACHED: ${calcs['cpp_ytd']:,.2f} (Max: ${calcs['cpp_max']:,.2f})")
-#         else:
-#             self.add_log(f"   CPP YTD: ${calcs['cpp_ytd']:,.2f} / ${calcs['cpp_max']:,.2f}")
-            
-#         if calcs['ei_limit_hit']:
-#             self.add_log(f"   ⚠️  EI YTD LIMIT REACHED: ${calcs['ei_ytd']:,.2f} (Max: ${calcs['ei_max']:,.2f})")
-#         else:
-#             self.add_log(f"   EI YTD: ${calcs['ei_ytd']:,.2f} / ${calcs['ei_max']:,.2f}")
-        
-#         self.add_log("   ✅ All calculations verified!")
-#         self.add_log("")
-        
-#         # STEP 2: EXTRACT
-#         self.add_log("📖 STEP 2: Advanced Extraction")
-#         self.add_log("-" * 90)
-        
-#         extracted = self.extractor.extract_all(input_doc)
-        
-#         self.add_log(f"   Paragraphs: {len(extracted['raw_paragraphs'])}")
-#         self.add_log(f"   Tables: {len(extracted['raw_tables'])}")
-#         self.add_log(f"   Numeric values found: {len(extracted['all_values'])}")
-#         self.add_log("   ✅ Extracted")
-#         self.add_log("")
-        
-#         # STEP 3: AI MAPPING
-#         self.add_log("🧠 STEP 3: Revolutionary AI Detection")
-#         self.add_log("-" * 90)
-        
-#         mappings = self.ai.intelligent_mapping(extracted, calcs)
-        
-#         if mappings:
-#             self.add_log("")
-#             self.add_log(f"{'Field':<25} {'Old':<15} {'New':<15} {'Location':<12}")
-#             self.add_log("-" * 90)
-#             for m in mappings[:15]:
-#                 self.add_log(f"{m.get('field_name', ''):<25} "
-#                       f"{m.get('old_value', ''):<15} "
-#                       f"{m.get('new_value', ''):<15} "
-#                       f"{m.get('location', ''):<12}")
-#             if len(mappings) > 15:
-#                 self.add_log(f"   ... and {len(mappings) - 15} more")
-        
-#         self.add_log("")
-#         self.add_log(f"   ✅ Total mappings: {len(mappings)}")
-#         self.add_log("")
-        
-#         # STEP 4: VALIDATE
-#         self.add_log("🔍 STEP 4: Validation")
-#         self.add_log("-" * 90)
-        
-#         valid, errors = self.validator.validate_all(calcs, mappings, input_doc)
-#         if errors:
-#             self.add_log("   ⚠️  Warnings:")
-#             for err in errors:
-#                 self.add_log(f"      - {err}")
-#         else:
-#             self.add_log("   ✅ All validations passed")
-#         self.add_log("")
-        
-#         # STEP 5: REPLACE
-#         self.add_log("✏️  STEP 5: Precision Replacement")
-#         self.add_log("-" * 90)
-        
-#         replaced = self.replacer.find_and_replace_advanced(input_doc, mappings, extracted, self.add_log)
-        
-#         self.add_log("")
-#         self.add_log(f"   ✅ Replaced: {replaced}/{len(mappings)} values")
-#         self.add_log("")
-        
-#         self.add_log("="*90)
-#         self.add_log("✅ GENERATION COMPLETE!")
-#         self.add_log("="*90)
-#         self.add_log("")
-        
-#         return input_doc, replaced, calcs
-
-
-# # ============================================================================
-# # PERIOD CALCULATOR
-# # ============================================================================
-
-# def calculate_period(start_date: datetime, end_date: datetime) -> int:
-#     """Calculate pay period number based on start and end date"""
-#     year_start = datetime(start_date.year, 1, 1)
-#     days_from_year_start = (end_date - year_start).days
-#     period = (days_from_year_start // 14) + 1
-#     return min(period, 26)
-
-
-# # ============================================================================
-# # STREAMLIT APPLICATION
-# # ============================================================================
-
-# def main():
-#     # Initialize session state
-#     if 'logs' not in st.session_state:
-#         st.session_state.logs = []
-#     if 'output_docx' not in st.session_state:
-#         st.session_state.output_docx = None
-#     if 'output_filename' not in st.session_state:
-#         st.session_state.output_filename = ""
-#     if 'api_key_validated' not in st.session_state:
-#         st.session_state.api_key_validated = False
-#     if 'api_key' not in st.session_state:
-#         st.session_state.api_key = ""
-#     if 'last_calcs' not in st.session_state:
-#         st.session_state.last_calcs = None
-    
-#     # Header
-#     st.markdown('<div class="main-header">🚀 Paystub Generator v5.2</div>', unsafe_allow_html=True)
-#     st.markdown('<div class="sub-header">✅ Enhanced with YTD Limits • CPP & EI Max Thresholds • Vacation 1.25%</div>', unsafe_allow_html=True)
-    
-#     # ========================================================================
-#     # API KEY INPUT SECTION
-#     # ========================================================================
-    
-#     if not st.session_state.api_key_validated:
-#         st.markdown("---")
-#         st.markdown("### 🔑 Enter Your Gemini API Key")
-#         st.info("👉 Get your free API key from: https://aistudio.google.com/app/apikey")
-        
-#         api_key_input = st.text_input(
-#             "Gemini API Key",
-#             type="password",
-#             placeholder="AIzaSy...",
-#             help="Enter your Google Gemini API key to start"
-#         )
-        
-#         col_a, col_b, col_c = st.columns([1, 1, 2])
-        
-#         with col_a:
-#             if st.button("✅ Validate & Start", type="primary"):
-#                 if api_key_input and len(api_key_input) > 20:
-#                     try:
-#                         genai.configure(api_key=api_key_input)
-#                         model = genai.GenerativeModel('gemini-2.0-flash')
-#                         response = model.generate_content("test")
-                        
-#                         st.session_state.api_key = api_key_input
-#                         st.session_state.api_key_validated = True
-#                         st.success("✅ API Key validated successfully!")
-#                         st.rerun()
-#                     except Exception as e:
-#                         st.error(f"❌ Invalid API Key: {str(e)}")
-#                 else:
-#                     st.error("❌ Please enter a valid API key")
-        
-#         with col_b:
-#             if st.button("🔄 Reset", type="secondary"):
-#                 st.session_state.api_key_validated = False
-#                 st.session_state.api_key = ""
-#                 st.rerun()
-        
-#         st.stop()
-    
-#     st.success("🔑 API Key: Connected ✅")
-    
-#     # Sidebar
-#     with st.sidebar:
-#         st.header("⚙️ Settings")
-        
-#         year = st.selectbox(
-#             "Tax Year",
-#             options=[2025, 2026],
-#             index=0,
-#             help="Select the tax year for YTD limit calculations"
-#         )
-        
-#         limits = YTD_LIMITS[year]
-#         st.info(f"""
-# **{year} YTD Limits:**
-# - CPP Max: ${limits['cpp_max']:,.2f}
-# - EI Max: ${limits['ei_max']:,.2f}
-#         """)
-        
-#         st.markdown("---")
-#         st.markdown("""
-# ### 📖 How to Use
-# 1. ✅ API key connected
-# 2. Upload original DOCX
-# 3. Enter yearly income
-# 4. Select pay period dates
-# 5. Enter hours/overtime/vacation
-# 6. Generate paystub
-# 7. Download processed DOCX
-
-# ### 📊 Calculation Rules
-# - **CPP**: 5.7% of gross
-# - **EI**: 1.7% of gross
-# - **Vacation**: 1.25% of gross
-# - **Tax**: 15% of gross
-# - **YTD Limits**: Max around period 17-18
-#         """)
-        
-#         st.markdown("---")
-        
-#         if st.button("🔄 Reset All", type="secondary"):
-#             st.session_state.logs = []
-#             st.session_state.output_docx = None
-#             st.session_state.output_filename = ""
-#             st.session_state.api_key_validated = False
-#             st.session_state.api_key = ""
-#             st.session_state.last_calcs = None
-#             st.rerun()
-    
-#     # Main Content
-#     col1, col2 = st.columns([1, 1])
-    
-#     with col1:
-#         st.header("📤 Upload Original Paystub")
-#         uploaded_file = st.file_uploader(
-#             "Choose a DOCX file",
-#             type=['docx'],
-#             help="Upload the original paystub DOCX file"
-#         )
-        
-#         if uploaded_file:
-#             st.success(f"✅ Uploaded: {uploaded_file.name}")
-#             st.info(f"📊 File size: {len(uploaded_file.getvalue()) / 1024:.2f} KB")
-    
-#     with col2:
-#         st.header("💰 Income & Period Details")
-        
-#         yearly_income = st.number_input(
-#             "Yearly Income ($)",
-#             min_value=0.0,
-#             value=79870.22,
-#             step=100.0,
-#             format="%.2f",
-#             help="Enter total yearly income"
-#         )
-        
-#         st.markdown("**📅 Pay Period (Bi-Weekly)**")
-#         col2a, col2b = st.columns(2)
-        
-#         with col2a:
-#             start_date = st.date_input(
-#                 "Start Date",
-#                 value=datetime(2025, 1, 5),
-#                 help="Select pay period start date"
-#             )
-        
-#         with col2b:
-#             end_date = st.date_input(
-#                 "End Date",
-#                 value=datetime(2025, 1, 18),
-#                 help="Select pay period end date"
-#             )
-        
-#         if start_date and end_date:
-#             period = calculate_period(datetime.combine(start_date, datetime.min.time()), 
-#                                      datetime.combine(end_date, datetime.min.time()))
-#             st.info(f"📊 Calculated Period: **{period}** of 26")
-            
-#             # Show limit warnings
-#             if period >= 17:
-#                 st.warning(f"⚠️ Period {period}: YTD limits may apply for high income earners")
-    
-#     # Hours & Details
-#     st.markdown("---")
-#     st.header("⏰ Hours & Earnings Details")
-    
-#     col3a, col3b, col3c, col3d = st.columns(4)
-    
-#     with col3a:
-#         regular_hours = st.number_input(
-#             "Regular Hours",
-#             min_value=0.0,
-#             value=80.0,
-#             step=0.5,
-#             format="%.2f",
-#             help="Regular hours (default: 80)"
-#         )
-    
-#     with col3b:
-#         overtime_hours = st.number_input(
-#             "Overtime Hours (1.5x)",
-#             min_value=0.0,
-#             value=0.0,
-#             step=0.5,
-#             format="%.2f",
-#             help="Overtime at 1.5x rate"
-#         )
-    
-#     with col3c:
-#         vacation_hours = st.number_input(
-#             "Vacation Hours",
-#             min_value=0.0,
-#             value=0.0,
-#             step=0.5,
-#             format="%.2f",
-#             help="Vacation hours"
-#         )
-    
-#     with col3d:
-#         stat_holiday_hours = st.number_input(
-#             "Stat Holiday Hours",
-#             min_value=0.0,
-#             value=0.0,
-#             step=0.5,
-#             format="%.2f",
-#             help="Statutory holiday hours"
-#         )
-    
-#     # Generate Button
-#     st.markdown("---")
-    
-#     if st.button("🚀 Generate Paystub", type="primary"):
-#         if not uploaded_file:
-#             st.error("❌ Please upload a DOCX file!")
-#             return
-        
-#         if not start_date or not end_date:
-#             st.error("❌ Please select both start and end dates!")
-#             return
-        
-#         st.session_state.logs = []
-#         st.session_state.output_docx = None
-        
-#         with st.spinner("🔄 Processing paystub with YTD limits..."):
-#             try:
-#                 def add_log(msg):
-#                     st.session_state.logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
-                
-#                 doc_bytes = uploaded_file.getvalue()
-#                 doc = Document(io.BytesIO(doc_bytes))
-                
-#                 system = RevolutionarySystem(st.session_state.api_key, add_log_callback=add_log)
-                
-#                 processed_doc, replaced, calcs = system.generate(
-#                     doc,
-#                     yearly_income,
-#                     period,
-#                     regular_hours,
-#                     overtime_hours,
-#                     vacation_hours,
-#                     stat_holiday_hours,
-#                     year
-#                 )
-                
-#                 st.session_state.last_calcs = calcs
-                
-#                 output_buffer = io.BytesIO()
-#                 processed_doc.save(output_buffer)
-#                 output_buffer.seek(0)
-                
-#                 st.session_state.output_docx = output_buffer.getvalue()
-#                 st.session_state.output_filename = f"paystub_p{period}_{year}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
-                
-#                 add_log("")
-#                 add_log(f"💾 Output: {st.session_state.output_filename}")
-#                 add_log(f"✅ Total replacements: {replaced}")
-#                 add_log(f"✅ Period {period} ({year}) calculations applied")
-                
-#                 st.success("✅ Paystub generated successfully with YTD limits!")
-#                 st.balloons()
-                
-#             except Exception as e:
-#                 st.error(f"❌ Error: {str(e)}")
-#                 add_log(f"❌ ERROR: {str(e)}")
-    
-#     # Show YTD limit warnings if applicable
-#     if st.session_state.last_calcs:
-#         calcs = st.session_state.last_calcs
-#         if calcs.get('cpp_limit_hit') or calcs.get('ei_limit_hit'):
-#             st.markdown("---")
-#             st.markdown('<div class="limit-warning">', unsafe_allow_html=True)
-#             st.markdown("### ⚠️ YTD Limits Reached")
-#             if calcs['cpp_limit_hit']:
-#                 st.markdown(f"**CPP**: Maximum YTD limit of ${calcs['cpp_max']:,.2f} has been reached")
-#             if calcs['ei_limit_hit']:
-#                 st.markdown(f"**EI**: Maximum YTD limit of ${calcs['ei_max']:,.2f} has been reached")
-#             st.markdown("No further deductions for these items will be made in subsequent pay periods.")
-#             st.markdown('</div>', unsafe_allow_html=True)
-    
-#     # Display Logs
-#     if st.session_state.logs:
-#         st.markdown("---")
-#         st.markdown("### 📝 Processing Log")
-#         log_html = "<br>".join([f'<span style="color: #00ff00;">{log}</span>' for log in st.session_state.logs])
-#         st.markdown(
-#             f'<div class="log-container">{log_html}</div>',
-#             unsafe_allow_html=True
-#         )
-    
-#     # Download Button
-#     if st.session_state.output_docx:
-#         st.markdown("---")
-#         st.markdown("### 📥 Download Processed Paystub")
-        
-#         st.download_button(
-#             label="⬇️ Download Generated Paystub (DOCX)",
-#             data=st.session_state.output_docx,
-#             file_name=st.session_state.output_filename,
-#             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-#             type="primary"
-#         )
-    
-#     # Footer
-#     st.markdown("---")
-#     st.markdown("""
-#     <div style="text-align: center; color: #666; font-size: 0.9rem;">
-#         <p><strong>Paystub Generator v5.2</strong> - Enhanced with YTD Limits</p>
-#         <p>✅ CPP 5.7% • EI 1.7% • Vacation 1.25% • Tax 15%</p>
-#         <p>⚠️ YTD Limits: CPP & EI max out around period 17-18</p>
-#     </div>
-#     """, unsafe_allow_html=True)
-
-# if __name__ == "__main__":
-#     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 """
-AI-Powered DOCX Paystub Generator - Streamlit Web Application v5.3
-✓ FIXED: Gemini API rate limiting (SINGLE call optimization)
-✓ FIXED: String format errors (robust JSON parsing)
-✓ FIXED: Document corruption (safe cell handling)
-✓ FIXED: Mapping failures (enhanced detection)
-✓ CORRECTED CALCULATIONS (EI: 1.7%, CPP: 5.7%, Vacation: 1.25%)
-✓ PERFECT YTD FORMULA WITH MAX LIMITS
+AI-Powered DOCX Paystub Generator v5.4 - COMPLETE FIXED VERSION
+✓ FIXED: N/A values replaced with actual calculations
+✓ FIXED: Text alignment preservation
+✓ FIXED: YTD hours calculations
 """
 
 import os
@@ -2081,33 +13,19 @@ import re
 import io
 from typing import Dict, List, Tuple, Optional, Any
 from datetime import datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP
 
-# Streamlit
 import streamlit as st
-
-# DOCX Processing
 from docx import Document
 from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
-
-# AI Integration
 import google.generativeai as genai
 
-# ============================================================================
-# PAGE CONFIGURATION
-# ============================================================================
-
 st.set_page_config(
-    page_title="Paystub Generator v5.3",
+    page_title="Paystub Generator v5.4",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# ============================================================================
-# CUSTOM CSS
-# ============================================================================
 
 st.markdown("""
 <style>
@@ -2154,10 +72,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ============================================================================
-# YTD LIMITS CONFIGURATION
-# ============================================================================
-
 YTD_LIMITS = {
     2025: {
         'cpp_max': 4034.10,
@@ -2173,13 +87,7 @@ YTD_LIMITS = {
     }
 }
 
-# ============================================================================
-# ENHANCED CALCULATOR WITH YTD LIMITS
-# ============================================================================
-
 class PerfectCalculator:
-    """Implements client's EXACT formula with YTD LIMITS"""
-    
     @staticmethod
     def calculate(yearly_income: float, period: int, hours: float = 80.0,
                  overtime_hours: float = 0.0, vacation_hours: float = 0.0,
@@ -2202,8 +110,6 @@ class PerfectCalculator:
         cpp_current = gross_current * 0.057
         ei_current = gross_current * 0.017
         tax_current = gross_current * 0.15
-        deductions_current = cpp_current + ei_current + tax_current
-        net_current = gross_current - deductions_current
         
         regular_ytd = regular * period
         overtime_ytd = overtime_pay * period
@@ -2238,6 +144,11 @@ class PerfectCalculator:
         deductions_ytd = cpp_ytd + ei_ytd + tax_ytd
         net_ytd = gross_ytd - deductions_ytd
         
+        hours_ytd = hours * period
+        overtime_hours_ytd = overtime_hours * period
+        vacation_hours_ytd = vacation_hours * period
+        stat_holidays_ytd = stat_holidays * period
+        
         return {
             'hourly_rate': hourly_rate,
             'hours': hours,
@@ -2247,7 +158,6 @@ class PerfectCalculator:
             'stat_holidays': stat_holidays,
             'period': period,
             'year': year,
-            
             'regular_current': regular,
             'overtime_current': overtime_pay,
             'vacation_current': vacation_pay,
@@ -2258,7 +168,6 @@ class PerfectCalculator:
             'tax_current': tax_current,
             'deductions_current': cpp_current_adjusted + ei_current_adjusted + tax_current,
             'net_current': gross_current - (cpp_current_adjusted + ei_current_adjusted + tax_current),
-            
             'regular_ytd': regular_ytd,
             'overtime_ytd': overtime_ytd,
             'vacation_ytd': vacation_ytd,
@@ -2269,7 +178,10 @@ class PerfectCalculator:
             'tax_ytd': tax_ytd,
             'deductions_ytd': deductions_ytd,
             'net_ytd': net_ytd,
-            
+            'hours_ytd': hours_ytd,
+            'overtime_hours_ytd': overtime_hours_ytd,
+            'vacation_hours_ytd': vacation_hours_ytd,
+            'stat_holidays_ytd': stat_holidays_ytd,
             'cpp_limit_hit': cpp_limit_hit,
             'ei_limit_hit': ei_limit_hit,
             'cpp_max': limits['cpp_max'],
@@ -2278,13 +190,9 @@ class PerfectCalculator:
             'ei_ytd_calculated': ei_ytd_calculated,
         }
 
-
 class AdvancedExtractor:
-    """Extracts ALL content safely"""
-    
     @staticmethod
     def extract_all(doc: Document) -> Dict:
-        
         data = {
             'raw_paragraphs': [],
             'raw_tables': [],
@@ -2295,11 +203,7 @@ class AdvancedExtractor:
         for idx, para in enumerate(doc.paragraphs):
             text = para.text.strip()
             if text:
-                data['raw_paragraphs'].append({
-                    'index': idx,
-                    'text': text,
-                    'type': 'paragraph'
-                })
+                data['raw_paragraphs'].append({'index': idx, 'text': text, 'type': 'paragraph'})
                 numbers = re.findall(r'\d+[,.]?\d*\.?\d+', text)
                 for num in numbers:
                     data['all_values'].append({
@@ -2310,11 +214,7 @@ class AdvancedExtractor:
                     })
         
         for table_idx, table in enumerate(doc.tables):
-            table_data = {
-                'index': table_idx,
-                'rows': [],
-                'cells_flat': []
-            }
+            table_data = {'index': table_idx, 'rows': [], 'cells_flat': []}
             
             for row_idx, row in enumerate(table.rows):
                 row_data = []
@@ -2345,11 +245,9 @@ class AdvancedExtractor:
                         })
                 
                 table_data['rows'].append(row_data)
-            
             data['raw_tables'].append(table_data)
         
         structured = []
-        
         for p in data['raw_paragraphs']:
             structured.append(f"[PARAGRAPH {p['index']}] {p['text']}")
         
@@ -2361,38 +259,115 @@ class AdvancedExtractor:
                     structured.append(row_text)
         
         data['structured_data'] = "\n".join(structured)
-        
         return data
 
+class AlignmentPreserver:
+    @staticmethod
+    def get_paragraph_format(paragraph):
+        try:
+            return {
+                'alignment': paragraph.alignment,
+                'left_indent': paragraph.paragraph_format.left_indent,
+                'right_indent': paragraph.paragraph_format.right_indent,
+                'space_before': paragraph.paragraph_format.space_before,
+                'space_after': paragraph.paragraph_format.space_after,
+            }
+        except:
+            return {'alignment': None, 'left_indent': None, 'right_indent': None, 'space_before': None, 'space_after': None}
+    
+    @staticmethod
+    def apply_paragraph_format(paragraph, fmt):
+        try:
+            if fmt.get('alignment') is not None:
+                paragraph.alignment = fmt['alignment']
+            if fmt.get('left_indent') is not None:
+                paragraph.paragraph_format.left_indent = fmt['left_indent']
+            if fmt.get('right_indent') is not None:
+                paragraph.paragraph_format.right_indent = fmt['right_indent']
+            if fmt.get('space_before') is not None:
+                paragraph.paragraph_format.space_before = fmt['space_before']
+            if fmt.get('space_after') is not None:
+                paragraph.paragraph_format.space_after = fmt['space_after']
+        except:
+            pass
+    
+    @staticmethod
+    def get_run_format(run):
+        try:
+            return {
+                'bold': run.bold,
+                'italic': run.italic,
+                'underline': run.underline,
+                'font_size': run.font.size,
+                'font_name': run.font.name,
+            }
+        except:
+            return {'bold': None, 'italic': None, 'underline': None, 'font_size': None, 'font_name': None}
+    
+    @staticmethod
+    def apply_run_format(run, fmt):
+        try:
+            if fmt.get('bold') is not None:
+                run.bold = fmt['bold']
+            if fmt.get('italic') is not None:
+                run.italic = fmt['italic']
+            if fmt.get('underline') is not None:
+                run.underline = fmt['underline']
+            if fmt.get('font_size'):
+                run.font.size = fmt['font_size']
+            if fmt.get('font_name'):
+                run.font.name = fmt['font_name']
+        except:
+            pass
 
 class OptimizedAI:
-    """FIXED: Single API call to avoid rate limits"""
-    
     def __init__(self, api_key: str, add_log_callback=None):
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(
-            'gemini-2.0-flash-exp',
-            generation_config={
-                "temperature": 0.1,
-                "top_p": 0.95,
-                "top_k": 40,
-            }
-        )
+        self.model = genai.GenerativeModel('gemini-2.0-flash-exp', generation_config={"temperature": 0.1, "top_p": 0.95, "top_k": 40})
         self.add_log = add_log_callback or (lambda x: None)
     
     def intelligent_mapping(self, extracted_data: Dict, calculations: Dict) -> List[Dict]:
-        """OPTIMIZED: Single AI call with complete mapping"""
-        
-        self.add_log("   🧠 AI: Single optimized analysis...")
+        self.add_log("   🧠 AI: Enhanced value mapping (N/A prevention)...")
         
         limit_info = ""
         if calculations.get('cpp_limit_hit') or calculations.get('ei_limit_hit'):
-            limit_info = f"""
-⚠️ YTD LIMITS ACTIVE:
-- CPP Limit: ${calculations['cpp_max']:,.2f} {"(MAX REACHED)" if calculations['cpp_limit_hit'] else ""}
-- EI Limit: ${calculations['ei_max']:,.2f} {"(MAX REACHED)" if calculations['ei_limit_hit'] else ""}
-"""
+            limit_info = f"""⚠️ YTD LIMITS: CPP ${calculations['cpp_max']:,.2f} {"(MAX)" if calculations['cpp_limit_hit'] else ""}, EI ${calculations['ei_max']:,.2f} {"(MAX)" if calculations['ei_limit_hit'] else ""}"""
         
+#         prompt = f"""You are an EXPERT PAYSTUB ANALYZER.
+
+# DOCUMENT:
+# {extracted_data['structured_data']}
+
+# VALUES:
+# **YTD HOURS (CRITICAL - USE FOR YTD HOUR FIELDS):**
+# - Hours YTD: {calculations['hours_ytd']:.1f}
+# - Overtime Hours YTD: {calculations['overtime_hours_ytd']:.1f}
+# - Stat Holiday Hours YTD: {calculations['stat_holidays_ytd']:.1f}
+
+# **CURRENT:**
+# - Rate: {calculations['hourly_rate']:.2f}, Hours: {calculations['hours']:.1f}, OT Hours: {calculations['overtime_hours']:.1f}
+# - Regular: {calculations['regular_current']:.2f}, OT: {calculations['overtime_current']:.2f}, Vacation: {calculations['vacation_current']:.2f}
+# - Gross: {calculations['gross_current']:.2f}, CPP: {calculations['cpp_current']:.2f}, EI: {calculations['ei_current']:.2f}, Tax: {calculations['tax_current']:.2f}
+# - Net: {calculations['net_current']:.2f}
+
+# **YTD:**
+# - Regular: {calculations['regular_ytd']:.2f}, OT: {calculations['overtime_ytd']:.2f}, Vacation: {calculations['vacation_ytd']:.2f}
+# - Gross: {calculations['gross_ytd']:.2f}, CPP: {calculations['cpp_ytd']:.2f}, EI: {calculations['ei_ytd']:.2f}, Tax: {calculations['tax_ytd']:.2f}
+# - Net: {calculations['net_ytd']:.2f}
+# {limit_info}
+
+# RULES:
+# 1. ❌ NEVER use "N/A" as new_value
+# 2. ✅ Hours YTD → {calculations['hours_ytd']:.1f}
+# 3. ✅ OT Hours YTD → {calculations['overtime_hours_ytd']:.1f}
+# 4. ✅ Match exact numbers with calculations
+# 5. ✅ 2 decimals for money, 1 for hours
+
+# Return JSON array:
+# [{{"field_name": "Hours YTD", "old_value": "1528.00", "new_value": "{calculations['hours_ytd']:.1f}", "location": "T0R5C2", "confidence": "high"}}]"""
+
+
+     
         prompt = f"""You are an EXPERT PAYSTUB DOCUMENT ANALYZER.
 
 DOCUMENT CONTENT:
@@ -2470,52 +445,53 @@ Return ONLY a JSON array like this:
 
 Return ONLY the JSON array, nothing else:"""
 
+
         try:
             response = self.model.generate_content(prompt)
             json_text = self._clean_json(response.text)
             mappings = json.loads(json_text)
             
             if not isinstance(mappings, list):
-                self.add_log(f"      ⚠️  AI returned non-list: {type(mappings)}")
                 mappings = []
             
-            mappings = [m for m in mappings if isinstance(m, dict) and m.get('old_value') and m.get('new_value')]
+            clean_mappings = []
+            rejected = 0
             
-        except json.JSONDecodeError as e:
-            self.add_log(f"      ⚠️  JSON parse error: {e}")
-            self.add_log(f"      Raw response: {response.text[:200]}...")
-            mappings = []
+            for m in mappings:
+                if not isinstance(m, dict) or not m.get('old_value') or not m.get('new_value'):
+                    continue
+                
+                new_val = str(m.get('new_value', '')).strip().upper()
+                if 'N/A' in new_val or new_val == 'NA':
+                    self.add_log(f"      ❌ Rejected N/A: {m.get('field_name')}")
+                    rejected += 1
+                    continue
+                
+                clean_mappings.append(m)
+            
+            if rejected > 0:
+                self.add_log(f"      ⚠️  Filtered {rejected} N/A mappings")
+            
+            mappings = clean_mappings
+            
         except Exception as e:
-            self.add_log(f"      ⚠️  AI call failed: {e}")
+            self.add_log(f"      ⚠️  AI error: {e}")
             mappings = []
         
-        self.add_log(f"      ✅ Created {len(mappings)} mappings")
-        
+        self.add_log(f"      ✅ {len(mappings)} valid mappings")
         return mappings
     
     def _clean_json(self, text: str) -> str:
-        """Robust JSON cleaning"""
         text = text.strip()
-        
         text = re.sub(r'^```json\s*', '', text, flags=re.MULTILINE)
         text = re.sub(r'^```\s*', '', text, flags=re.MULTILINE)
         text = re.sub(r'```\s*$', '', text, flags=re.MULTILINE)
-        
         match = re.search(r'\[.*\]', text, re.DOTALL)
-        if match:
-            return match.group(0)
-        
-        return text
-
+        return match.group(0) if match else text
 
 class SafeReplacer:
-    """FIXED: Safe document manipulation without corruption"""
-    
     @staticmethod
-    def find_and_replace_safe(doc: Document, mappings: List[Dict], 
-                             extracted_data: Dict, add_log_callback=None) -> int:
-        """Safe multi-strategy replacement"""
-        
+    def find_and_replace_safe(doc: Document, mappings: List[Dict], extracted_data: Dict, add_log_callback=None) -> int:
         add_log = add_log_callback or (lambda x: None)
         replaced = 0
         
@@ -2526,13 +502,11 @@ class SafeReplacer:
                 field = mapping.get('field_name', 'Unknown')
                 location = mapping.get('location', '')
                 
-                if not old_val or not new_val:
+                if not old_val or not new_val or new_val.upper() in ['N/A', 'NA']:
                     continue
                 
                 if location:
-                    success = SafeReplacer._replace_by_location(
-                        doc, location, old_val, new_val
-                    )
+                    success = SafeReplacer._replace_by_location(doc, location, old_val, new_val)
                     if success:
                         add_log(f"      ✅ {field}: '{old_val}' → '{new_val}'")
                         replaced += 1
@@ -2541,74 +515,66 @@ class SafeReplacer:
                 for val_info in extracted_data['all_values']:
                     if SafeReplacer._values_match(val_info['value'], old_val):
                         if val_info['type'] == 'table_cell' and 'cell' in val_info:
-                            success = SafeReplacer._replace_in_cell_safe(
-                                val_info['cell'], old_val, new_val
-                            )
+                            success = SafeReplacer._replace_in_cell_safe(val_info['cell'], old_val, new_val)
                             if success:
                                 add_log(f"      ✅ {field}: '{old_val}' → '{new_val}'")
                                 replaced += 1
                                 break
-                
             except Exception as e:
-                add_log(f"      ⚠️  Skipped {field}: {e}")
-                continue
+                add_log(f"      ⚠️  Skip {field}: {e}")
         
         return replaced
     
     @staticmethod
-    def _replace_by_location(doc: Document, location: str, 
-                            old_val: str, new_val: str) -> bool:
-        """Replace at specific location safely"""
+    def _replace_by_location(doc: Document, location: str, old_val: str, new_val: str) -> bool:
         match = re.match(r'T(\d+)R(\d+)C(\d+)', location)
         if not match:
             return False
         
         try:
             t_idx, r_idx, c_idx = map(int, match.groups())
-            
             if t_idx >= len(doc.tables):
                 return False
-            
             table = doc.tables[t_idx]
-            
             if r_idx >= len(table.rows):
                 return False
-            
             row = table.rows[r_idx]
-            
             if c_idx >= len(row.cells):
                 return False
-            
-            cell = row.cells[c_idx]
-            return SafeReplacer._replace_in_cell_safe(cell, old_val, new_val)
-            
-        except Exception:
+            return SafeReplacer._replace_in_cell_safe(row.cells[c_idx], old_val, new_val)
+        except:
             return False
     
     @staticmethod
     def _replace_in_cell_safe(cell: _Cell, old_text: str, new_text: str) -> bool:
-        """Safe cell text replacement"""
         try:
+            replaced = False
             for para in cell.paragraphs:
+                para_format = AlignmentPreserver.get_paragraph_format(para)
+                
                 for run in para.runs:
+                    run_format = AlignmentPreserver.get_run_format(run)
+                    
                     if old_text in run.text:
                         run.text = run.text.replace(old_text, new_text)
-                        return True
-                    
-                    old_clean = re.sub(r'[^\d.]', '', old_text)
-                    run_clean = re.sub(r'[^\d.]', '', run.text)
-                    if old_clean and run_clean and old_clean == run_clean:
-                        run.text = run.text.replace(old_text, new_text)
-                        return True
-            
-            return False
-            
-        except Exception:
+                        AlignmentPreserver.apply_run_format(run, run_format)
+                        replaced = True
+                    else:
+                        old_clean = re.sub(r'[^\d.]', '', old_text)
+                        run_clean = re.sub(r'[^\d.]', '', run.text)
+                        if old_clean and run_clean and old_clean == run_clean:
+                            run.text = run.text.replace(old_text, new_text)
+                            AlignmentPreserver.apply_run_format(run, run_format)
+                            replaced = True
+                
+                if replaced:
+                    AlignmentPreserver.apply_paragraph_format(para, para_format)
+            return replaced
+        except:
             return False
     
     @staticmethod
     def _values_match(val1: str, val2: str) -> bool:
-        """Fuzzy value matching"""
         try:
             clean1 = re.sub(r'[^\d.]', '', str(val1))
             clean2 = re.sub(r'[^\d.]', '', str(val2))
@@ -2616,32 +582,30 @@ class SafeReplacer:
         except:
             return False
 
-
 class Validator:
-    """Multi-level validation"""
-    
     @staticmethod
-    def validate_all(calculations: Dict, mappings: List[Dict], 
-                    doc: Document) -> Tuple[bool, List[str]]:
-        """Comprehensive validation"""
+    def validate_all(calculations: Dict, mappings: List[Dict], doc: Document) -> Tuple[bool, List[str]]:
         errors = []
         
-        if abs(calculations['gross_current'] - 
-               (calculations['regular_current'] + 
-                calculations['overtime_current'] + 
-                calculations['vacation_current'] +
-                calculations['stat_holiday_current'])) > 0.02:
+        if abs(calculations['gross_current'] - (calculations['regular_current'] + calculations['overtime_current'] + calculations['vacation_current'] + calculations['stat_holiday_current'])) > 0.02:
             errors.append("Gross calculation error")
         
         if not mappings:
-            errors.append("No mappings created - AI may need better template")
+            errors.append("No mappings created")
+        
+        na_count = 0
+        for mapping in mappings:
+            new_val = str(mapping.get('new_value', '')).upper()
+            if 'N/A' in new_val or new_val == 'NA':
+                errors.append(f"N/A in: {mapping.get('field_name')}")
+                na_count += 1
+        
+        if na_count > 0:
+            errors.append(f"{na_count} N/A mappings found")
         
         return len(errors) == 0, errors
 
-
 class OptimizedSystem:
-    """FIXED: Optimized system with single AI call"""
-    
     def __init__(self, api_key: str, add_log_callback=None):
         self.calculator = PerfectCalculator()
         self.extractor = AdvancedExtractor()
@@ -2650,53 +614,38 @@ class OptimizedSystem:
         self.validator = Validator()
         self.add_log = add_log_callback or (lambda x: None)
     
-    def generate(self, input_doc: Document, yearly_income: float, period: int,
-                 hours: float = 80.0, overtime_hours: float = 0.0,
-                 vacation_hours: float = 0.0, stat_holidays: float = 0.0,
+    def generate(self, input_doc: Document, yearly_income: float, period: int, hours: float = 80.0, 
+                 overtime_hours: float = 0.0, vacation_hours: float = 0.0, stat_holidays: float = 0.0, 
                  year: int = 2025) -> Tuple[Document, int, Dict]:
-        """Generate paystub with optimized AI"""
         
         self.add_log("="*90)
-        self.add_log(f"PAYSTUB GENERATOR v5.3 - FIXED VERSION ({year})")
-        self.add_log("   ✅ Single AI call optimization")
-        self.add_log("   ✅ Safe document handling")
-        self.add_log("   ✅ Robust error handling")
+        self.add_log(f"PAYSTUB GENERATOR v5.4 FIXED ({year})")
+        self.add_log("   ✅ N/A prevention • ✅ Alignment preservation • ✅ YTD hours")
         self.add_log("="*90)
         self.add_log("")
         
         self.add_log("📊 STEP 1: Calculating")
         self.add_log("-" * 90)
-        
-        calcs = self.calculator.calculate(yearly_income, period, hours, 
-                                         overtime_hours, vacation_hours, 
-                                         stat_holidays, year)
-        
-        self.add_log(f"   Period: {period} of 26 ({year})")
-        self.add_log(f"   Gross: ${calcs['gross_current']:,.2f}")
-        self.add_log(f"   Net: ${calcs['net_current']:,.2f}")
+        calcs = self.calculator.calculate(yearly_income, period, hours, overtime_hours, vacation_hours, stat_holidays, year)
+        self.add_log(f"   Period: {period}/26, Gross: ${calcs['gross_current']:,.2f}, Net: ${calcs['net_current']:,.2f}")
         self.add_log("   ✅ Calculated")
         self.add_log("")
         
         self.add_log("📖 STEP 2: Extracting")
         self.add_log("-" * 90)
-        
         extracted = self.extractor.extract_all(input_doc)
-        
-        self.add_log(f"   Values found: {len(extracted['all_values'])}")
+        self.add_log(f"   Values: {len(extracted['all_values'])}")
         self.add_log("   ✅ Extracted")
         self.add_log("")
         
-        self.add_log("🧠 STEP 3: AI Mapping (Single Call)")
+        self.add_log("🧠 STEP 3: AI Mapping")
         self.add_log("-" * 90)
-        
         mappings = self.ai.intelligent_mapping(extracted, calcs)
-        
         self.add_log(f"   ✅ Mappings: {len(mappings)}")
         self.add_log("")
         
         self.add_log("🔍 STEP 4: Validation")
         self.add_log("-" * 90)
-        
         valid, errors = self.validator.validate_all(calcs, mappings, input_doc)
         if errors:
             for err in errors:
@@ -2707,9 +656,7 @@ class OptimizedSystem:
         
         self.add_log("✏️  STEP 5: Safe Replacement")
         self.add_log("-" * 90)
-        
         replaced = self.replacer.find_and_replace_safe(input_doc, mappings, extracted, self.add_log)
-        
         self.add_log("")
         self.add_log(f"   ✅ Replaced: {replaced}/{len(mappings)}")
         self.add_log("")
@@ -2721,13 +668,11 @@ class OptimizedSystem:
         
         return input_doc, replaced, calcs
 
-
 def calculate_period(start_date: datetime, end_date: datetime) -> int:
-    """Calculate pay period number"""
     year_start = datetime(start_date.year, 1, 1)
-    days_from_year_start = (end_date - year_start).days
-    period = (days_from_year_start // 14) + 1
-    return min(period, 26)
+    days = (end_date - year_start).days
+    return min((days // 14) + 1, 26)
+
 
 
 def main():
@@ -3106,3 +1051,12 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+
