@@ -109,7 +109,7 @@ class PerfectCalculator:
         
         cpp_current = gross_current * 0.057
         ei_current = gross_current * 0.017
-        tax_current = gross_current * 0.15
+        tax_current = gross_current * 18.25
         
         regular_ytd = regular * period
         overtime_ytd = overtime_pay * period
